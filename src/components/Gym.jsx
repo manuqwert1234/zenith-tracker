@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, useRef } from 'react'
-import { ArrowLeftRight, CalendarClock, Dumbbell, Camera, TrendingUp, Plus, X, ChevronRight, Image as ImageIcon } from 'lucide-react'
+import { ArrowLeftRight, CalendarClock, Dumbbell, Camera, TrendingUp, Plus, X, ChevronRight, Image as ImageIcon, History, Trash2 } from 'lucide-react'
 
 function startOfToday() {
   const now = new Date()
@@ -91,6 +91,7 @@ export default function Gym() {
   const [photoGalleryOpen, setPhotoGalleryOpen] = useState(false)
   const [customWorkoutOpen, setCustomWorkoutOpen] = useState(false)
   const [customExerciseName, setCustomExerciseName] = useState('')
+  const [historyOpen, setHistoryOpen] = useState(false)
   const fileInputRef = useRef(null)
 
   const todayIndex = useMemo(() => {
@@ -405,6 +406,91 @@ export default function Gym() {
           <div className="mt-3 flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-800 bg-slate-900/30 py-8 text-center">
             <ImageIcon className="h-8 w-8 text-slate-600" />
             <div className="mt-2 text-xs text-slate-500">No photos yet. Tap "Add Photo" to start tracking!</div>
+          </div>
+        )}
+      </div>
+
+      <div className="rounded-2xl border border-slate-800 bg-slate-950/50 p-4">
+        <div className="flex items-center justify-between">
+          <div className="text-xs font-semibold tracking-wide text-slate-400">WORKOUT HISTORY</div>
+          <button
+            type="button"
+            onClick={() => setHistoryOpen(!historyOpen)}
+            className="inline-flex items-center gap-1 rounded-lg border border-slate-800 bg-slate-900/50 px-3 py-1.5 text-xs font-extrabold text-slate-200 hover:bg-slate-900"
+          >
+            <History className="h-3 w-3" />
+            {historyOpen ? 'Hide' : 'Show All'}
+          </button>
+        </div>
+
+        {workouts.length > 0 ? (
+          <div className="mt-3 space-y-2">
+            {(historyOpen ? workouts : workouts.slice(-3))
+              .slice()
+              .reverse()
+              .map((workout) => (
+                <div key={workout.id} className="rounded-xl border border-slate-800 bg-slate-900/30 p-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <div className="text-xs font-semibold text-slate-400">
+                          {new Date(workout.date).toLocaleDateString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                            year: 'numeric',
+                          })}
+                        </div>
+                        {workout.dayType !== 'custom' && (
+                          <div className="rounded-md bg-slate-800 px-2 py-0.5 text-xs font-bold text-slate-300">
+                            {split.find((s) => s.key === workout.dayType)?.title || workout.dayType}
+                          </div>
+                        )}
+                        {workout.dayType === 'custom' && (
+                          <div className="rounded-md bg-emerald-500/20 px-2 py-0.5 text-xs font-bold text-emerald-400">
+                            Custom
+                          </div>
+                        )}
+                      </div>
+                      <div className="mt-2 space-y-1">
+                        {workout.exercises?.map((exercise, exIdx) => (
+                          <div key={exIdx} className="text-sm">
+                            <div className="font-bold text-slate-100">{exercise.name}</div>
+                            <div className="mt-0.5 flex flex-wrap gap-1">
+                              {exercise.sets?.map((set, setIdx) => (
+                                <div
+                                  key={setIdx}
+                                  className="rounded-md bg-slate-800/50 px-2 py-0.5 text-xs text-slate-300"
+                                >
+                                  {set.weight}kg × {set.reps}
+                                </div>
+                              ))}
+                            </div>
+                            {exercise.notes && (
+                              <div className="mt-1 text-xs italic text-slate-500">{exercise.notes}</div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (confirm('Delete this workout?')) {
+                          setWorkouts((prev) => prev.filter((w) => w.id !== workout.id))
+                        }
+                      }}
+                      className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-800 hover:text-red-400"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+          </div>
+        ) : (
+          <div className="mt-3 flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-800 bg-slate-900/30 py-8 text-center">
+            <History className="h-8 w-8 text-slate-600" />
+            <div className="mt-2 text-xs text-slate-500">No workouts logged yet. Start logging exercises!</div>
           </div>
         )}
       </div>

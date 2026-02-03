@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Activity, Dumbbell, PiggyBank, Settings, Bell, BellOff } from 'lucide-react'
+import { Activity, Dumbbell, PiggyBank, Settings, Bell, BellOff, Download } from 'lucide-react'
 import Budget from './components/Budget.jsx'
 import Gym from './components/Gym.jsx'
 import { requestNotificationPermission, notifyCheatMeal, notifyOverspending } from './utils/notifications.js'
+import { exportAllToExcel } from './utils/exportUtils.js'
 
 function useLocalStorageState(key, initialValue) {
   const [value, setValue] = useState(() => {
@@ -85,6 +86,15 @@ function App() {
   const [tab, setTab] = useLocalStorageState('zt.tab', 'budget')
   const [toast, setToast] = useState('')
 
+  function handleExport() {
+    const result = exportAllToExcel()
+    if (result.success) {
+      setToast(`✓ ${result.message}`)
+    } else {
+      setToast(`✗ ${result.message}`)
+    }
+  }
+
   const daysLeft = useMemo(() => daysLeftInCurrentMonth(), [])
   const month = useMemo(() => monthLabel(), [])
   const todayISO = useMemo(() => toISODate(startOfToday()), [])
@@ -121,6 +131,15 @@ function App() {
               <div className="mt-3 text-xs text-slate-500">
                 Tip: Install it from your browser menu (“Add to Home Screen”) for a cleaner phone experience.
               </div>
+
+              <button
+                type="button"
+                onClick={handleExport}
+                className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 px-4 py-3 text-sm font-extrabold text-slate-900 hover:bg-emerald-400 active:scale-[0.99]"
+              >
+                <Download className="h-4 w-4" />
+                Export to Excel
+              </button>
             </div>
           ) : null}
         </main>

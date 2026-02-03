@@ -89,6 +89,8 @@ export default function Gym() {
   const [sets, setSets] = useState([{ weight: '', reps: '' }])
   const [notes, setNotes] = useState('')
   const [photoGalleryOpen, setPhotoGalleryOpen] = useState(false)
+  const [customWorkoutOpen, setCustomWorkoutOpen] = useState(false)
+  const [customExerciseName, setCustomExerciseName] = useState('')
   const fileInputRef = useRef(null)
 
   const todayIndex = useMemo(() => {
@@ -163,6 +165,39 @@ export default function Gym() {
 
     setWorkouts((prev) => [...prev, newWorkout])
     setLogExercise(null)
+    setSets([{ weight: '', reps: '' }])
+    setNotes('')
+  }
+
+  function openCustomWorkout() {
+    setCustomExerciseName('')
+    setSets([{ weight: '', reps: '' }])
+    setNotes('')
+    setCustomWorkoutOpen(true)
+  }
+
+  function saveCustomWorkout() {
+    if (!customExerciseName.trim()) return
+
+    const validSets = sets.filter((s) => s.weight && s.reps)
+    if (validSets.length === 0) return
+
+    const newWorkout = {
+      id: crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      date: todayISO,
+      dayType: 'custom',
+      exercises: [
+        {
+          name: customExerciseName.trim(),
+          sets: validSets.map((s) => ({ weight: Number(s.weight), reps: Number(s.reps) })),
+          notes: notes.trim() || undefined,
+        },
+      ],
+    }
+
+    setWorkouts((prev) => [...prev, newWorkout])
+    setCustomWorkoutOpen(false)
+    setCustomExerciseName('')
     setSets([{ weight: '', reps: '' }])
     setNotes('')
   }
@@ -321,6 +356,15 @@ export default function Gym() {
               )
             })}
           </div>
+
+          <button
+            type="button"
+            onClick={openCustomWorkout}
+            className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-950/20 px-4 py-3 text-sm font-extrabold text-emerald-300 hover:bg-emerald-950/40 active:scale-[0.99]"
+          >
+            <Plus className="h-4 w-4" />
+            Add Custom Workout
+          </button>
         </div>
       )}
 
@@ -444,6 +488,106 @@ export default function Gym() {
               <button
                 type="button"
                 onClick={saveWorkout}
+                className="rounded-xl bg-emerald-500 px-4 py-2 text-sm font-extrabold text-slate-900 hover:bg-emerald-400"
+              >
+                Save Workout
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {customWorkoutOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/90 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-slate-800 bg-slate-900 p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-sm font-extrabold text-slate-100">Custom Workout</div>
+                <div className="text-xs text-slate-400">Log any exercise</div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCustomWorkoutOpen(false)}
+                className="rounded-lg p-1 text-slate-400 hover:bg-slate-800"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="mt-4">
+              <label className="text-xs font-semibold text-slate-400">Exercise Name</label>
+              <input
+                type="text"
+                placeholder="e.g., Bicep Curls, Plank, etc."
+                value={customExerciseName}
+                onChange={(e) => setCustomExerciseName(e.target.value)}
+                className="mt-1 w-full rounded-lg border border-slate-800 bg-slate-950/50 px-3 py-2 text-sm text-slate-100 outline-none"
+              />
+            </div>
+
+            <div className="mt-4 space-y-2">
+              <div className="text-xs font-semibold text-slate-400">Sets</div>
+              {sets.map((set, idx) => (
+                <div key={idx} className="flex gap-2">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-800 text-xs font-bold text-slate-300">
+                    {idx + 1}
+                  </div>
+                  <input
+                    type="number"
+                    placeholder="Weight (kg)"
+                    value={set.weight}
+                    onChange={(e) => {
+                      const newSets = [...sets]
+                      newSets[idx].weight = e.target.value
+                      setSets(newSets)
+                    }}
+                    className="flex-1 rounded-lg border border-slate-800 bg-slate-950/50 px-3 py-2 text-sm text-slate-100 outline-none"
+                    inputMode="decimal"
+                  />
+                  <input
+                    type="number"
+                    placeholder="Reps"
+                    value={set.reps}
+                    onChange={(e) => {
+                      const newSets = [...sets]
+                      newSets[idx].reps = e.target.value
+                      setSets(newSets)
+                    }}
+                    className="w-20 rounded-lg border border-slate-800 bg-slate-950/50 px-3 py-2 text-sm text-slate-100 outline-none"
+                    inputMode="numeric"
+                  />
+                </div>
+              ))}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setSets([...sets, { weight: '', reps: '' }])}
+              className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-emerald-400 hover:text-emerald-300"
+            >
+              <Plus className="h-3 w-3" />
+              Add Set
+            </button>
+
+            <textarea
+              placeholder="Notes (optional)"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              className="mt-3 w-full rounded-lg border border-slate-800 bg-slate-950/50 px-3 py-2 text-sm text-slate-100 outline-none"
+              rows={2}
+            />
+
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setCustomWorkoutOpen(false)}
+                className="rounded-xl border border-slate-800 bg-slate-950/30 px-4 py-2 text-sm font-bold text-slate-200 hover:bg-slate-900/60"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={saveCustomWorkout}
                 className="rounded-xl bg-emerald-500 px-4 py-2 text-sm font-extrabold text-slate-900 hover:bg-emerald-400"
               >
                 Save Workout

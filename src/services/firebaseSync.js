@@ -2,7 +2,7 @@ import { initializeApp } from 'firebase/app'
 import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth'
 import { getFirestore, collection, doc, setDoc, getDoc, getDocs, deleteDoc, query, orderBy, onSnapshot } from 'firebase/firestore'
 import { getStorage, ref, uploadString, getDownloadURL, deleteObject } from 'firebase/storage'
-import firebaseConfig from '../config/firebase.js'
+import firebaseConfig from '../config/firebase.prod.js'
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig)

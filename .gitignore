@@ -22,4 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
-.vercel
+
+# Firebase config (IMPORTANT: Keep credentials secret!)
+src/config/firebase.js

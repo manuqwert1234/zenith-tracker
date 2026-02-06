@@ -264,6 +264,30 @@ export default function Budget({ onCheatToast }) {
           <History className="h-3 w-3" />
           {showHistory ? 'Hide' : 'Show'} {isViewingToday ? "Today's" : selectedDate} History ({selectedDateTransactions.length})
         </button>
+
+        {showHistory && selectedDateTransactions.length > 0 && (
+          <div className="mt-4 border-t border-slate-800 pt-3">
+            <div className="text-xs font-semibold tracking-wide text-slate-500 mb-2">{isViewingToday ? "TODAY'S" : selectedDate} TRANSACTIONS</div>
+            <div className="space-y-2 max-h-60 overflow-y-auto">
+              {selectedDateTransactions.map((txn) => (
+                <div key={txn.id} className="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-900/30 px-3 py-2">
+                  <div className="flex-1">
+                    <div className="text-sm font-semibold text-slate-100">{txn.label}</div>
+                    <div className="text-xs text-slate-500">₹{txn.amount}</div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => deleteTransaction(txn.id)}
+                    className="rounded-lg p-1.5 text-rose-400 hover:bg-slate-800"
+                    aria-label="Delete transaction"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* PROTOCOL 90 PROTEIN TRACKER */}
@@ -293,10 +317,10 @@ export default function Budget({ onCheatToast }) {
           <div className="h-3 w-full overflow-hidden rounded-full bg-slate-800">
             <div
               className={`h-full transition-all duration-300 ${todaysProtein >= PROTEIN_GOAL
-                  ? 'bg-emerald-500'
-                  : todaysProtein >= PROTEIN_GOAL * 0.7
-                    ? 'bg-amber-500'
-                    : 'bg-amber-700'
+                ? 'bg-emerald-500'
+                : todaysProtein >= PROTEIN_GOAL * 0.7
+                  ? 'bg-amber-500'
+                  : 'bg-amber-700'
                 }`}
               style={{ width: `${proteinProgress}%` }}
             />
@@ -422,8 +446,8 @@ export default function Budget({ onCheatToast }) {
                     type="button"
                     onClick={() => logFood(key)}
                     className={`w-full rounded-xl border px-4 py-3 text-left transition-all hover:scale-[0.99] active:scale-[0.97] ${food.category === 'danger'
-                        ? 'border-rose-500/30 bg-rose-950/20 hover:bg-rose-950/30'
-                        : 'border-slate-700 bg-slate-800/50 hover:bg-slate-800'
+                      ? 'border-rose-500/30 bg-rose-950/20 hover:bg-rose-950/30'
+                      : 'border-slate-700 bg-slate-800/50 hover:bg-slate-800'
                       }`}
                   >
                     <div className="flex items-center justify-between">
@@ -486,29 +510,7 @@ export default function Budget({ onCheatToast }) {
         )}
       </div>
 
-      {showHistory && selectedDateTransactions.length > 0 && (
-        <div className="rounded-2xl border border-slate-800 bg-slate-950/50 p-4">
-          <div className="text-xs font-semibold tracking-wide text-slate-400">{isViewingToday ? "TODAY'S" : selectedDate} TRANSACTIONS</div>
-          <div className="mt-3 space-y-2">
-            {selectedDateTransactions.map((txn) => (
-              <div key={txn.id} className="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-900/30 px-3 py-2">
-                <div className="flex-1">
-                  <div className="text-sm font-semibold text-slate-100">{txn.label}</div>
-                  <div className="text-xs text-slate-500">₹{txn.amount}</div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => deleteTransaction(txn.id)}
-                  className="rounded-lg p-1.5 text-rose-400 hover:bg-slate-800"
-                  aria-label="Delete transaction"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+
 
       <div className="rounded-2xl border border-slate-800 bg-slate-950/50 p-4">
         <div className="flex items-end justify-between gap-3">

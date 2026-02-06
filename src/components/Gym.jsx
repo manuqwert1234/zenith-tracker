@@ -317,7 +317,7 @@ export default function Gym() {
       <div className="rounded-2xl border border-slate-800 bg-slate-950/50 p-4">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <div className="text-xs font-semibold tracking-wide text-slate-400">V-TAPER GYM LOG</div>
+            <div className="text-xs font-semibold tracking-wide text-slate-400">V-TAPER GYM LOG <span className="ml-1 text-emerald-500">v2.0 (Daily Cardio)</span></div>
             <div className="mt-1 text-2xl font-extrabold text-slate-50">Today is {todayWorkout.title}</div>
             <div className="mt-1 text-sm text-slate-300">Focus: <span className="font-semibold text-emerald-400">{todayWorkout.focus}</span></div>
           </div>

@@ -51,29 +51,36 @@ function useLocalStorageState(key, initialValue) {
 }
 
 const split = [
-  { key: 'push', title: 'Push Day', focus: 'Chest + Shoulders + Triceps' },
-  { key: 'pull', title: 'Pull Day', focus: 'Lat Width (V-taper)' },
-  { key: 'legs', title: 'Legs Day', focus: 'Quads + Hamstrings + Calves' },
-  { key: 'rest', title: 'Rest Day', focus: 'Walk + Mobility + Sleep' },
+  { key: 'push', title: 'Push Day', focus: 'Width and upper-body thickness' },
+  { key: 'pull', title: 'Pull Day', focus: 'The "V" width and arm peak' },
+  { key: 'legs', title: 'Leg Day', focus: 'Power and core stability' },
 ]
 
 const exercises = {
   push: [
-    { name: 'Chest Press', target: '12.5kg → 15kg', reps: '10-12' },
-    { name: 'Lateral Raises', target: '3-5kg', reps: '12-15' },
-    { name: 'Incline Press', target: '12.5kg', reps: '10-12' },
+    { name: 'Shoulder Press (Dumbbell/Machine)', target: '12.5kg+', reps: '3-4 sets', note: '🔥 The V-Taper King' },
+    { name: 'Incline Chest Press', target: '7.5kg - 12.5kg', reps: '3-4 sets', note: 'Builds the "upper shelf"' },
+    { name: 'Chest Press (Flat/Machine)', target: 'Progressive', reps: '3 sets' },
+    { name: 'Lateral Raises', target: '22lb - 33lb', reps: '3-4 sets', note: '🔥 Makes you "wide"' },
+    { name: 'Tricep Dips (Machine)', target: '93lb - 104lb', reps: '3 sets' },
+    { name: 'Tricep Pushdowns (Cables)', target: 'Progressive', reps: '3 sets' },
+    { name: 'Cardio', target: '128 Calories', reps: '12% Incline', note: '🔥 Don\'t skip cardio!' },
   ],
   pull: [
-    { name: 'Lat Pulldowns', target: 'Progressive', reps: '10-12', note: '🔥 Most important for V-taper' },
-    { name: 'Seated Cable Rows', target: 'Progressive', reps: '10-12' },
-    { name: 'Bicep Curls', target: 'Light weight', reps: '12-15' },
+    { name: 'Lat Pulldowns', target: 'Progressive', reps: '3-4 sets', note: '🔥 Widens the back, makes waist look smaller' },
+    { name: 'Seated Cable Rows', target: 'Progressive', reps: '3 sets', note: 'Adds thickness to middle back' },
+    { name: 'Face Pulls', target: 'Light-Medium', reps: '3 sets', note: 'Rear delts for 3D shoulder look' },
+    { name: 'Bicep Curls (Dumbbell/Ez-Bar)', target: 'Progressive', reps: '3 sets' },
+    { name: 'Hammer Curls', target: 'Progressive', reps: '3 sets', note: 'For forearm and bicep thickness' },
+    { name: 'Cardio', target: '128 Calories', reps: '12% Incline', note: '🔥 Don\'t skip cardio!' },
   ],
   legs: [
-    { name: 'Leg Press/Squats', target: 'Deep ROM', reps: '10-12' },
-    { name: 'Planks', target: 'Bodyweight', reps: '60s holds', note: 'Tight core for V-taper' },
-    { name: 'Hanging Leg Raises', target: 'Bodyweight', reps: '10-15' },
+    { name: 'Leg Press', target: '54kg+', reps: '3-4 sets', note: '🔥 Build powerful legs!' },
+    { name: 'Leg Extensions', target: 'Progressive', reps: '3 sets' },
+    { name: 'Leg Curls', target: 'Progressive', reps: '3 sets' },
+    { name: 'Plank', target: 'Bodyweight', reps: '3 sets × 60s+', note: '🔥 Keeps the stomach tight' },
+    { name: 'Cardio', target: '128 Calories', reps: '12% Incline', note: '🔥 Don\'t skip cardio!' },
   ],
-  rest: [],
 }
 
 export default function Gym() {
@@ -244,7 +251,7 @@ export default function Gym() {
             <div className="mt-1 text-sm text-slate-300">Focus: <span className="font-semibold text-emerald-400">{todayWorkout.focus}</span></div>
           </div>
           <div className="rounded-xl bg-slate-900/60 px-3 py-2 text-xs font-semibold text-slate-300">
-            Split: Push → Pull → Legs → Rest
+            Split: Push → Pull → Legs
           </div>
         </div>
 
@@ -709,5 +716,6 @@ export default function Gym() {
     </div>
   )
 }
+
 
 

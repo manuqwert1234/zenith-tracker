@@ -50,48 +50,102 @@ function useLocalStorageState(key, initialValue) {
   return [value, setValue]
 }
 
-const split = [
-  { key: 'push', title: 'Push Day', focus: 'Width and upper-body thickness' },
-  { key: 'pull', title: 'Pull Day', focus: 'The "V" width and arm peak' },
-  { key: 'legs', title: 'Leg Day', focus: 'Power and core stability' },
-]
-
-const exercises = {
-  push: [
-    { name: 'Shoulder Press (Dumbbell/Machine)', target: '12.5kg+', reps: '3-4 sets', note: '🔥 The V-Taper King' },
-    { name: 'Incline Chest Press', target: '7.5kg - 12.5kg', reps: '3-4 sets', note: 'Builds the "upper shelf"' },
-    { name: 'Chest Press (Flat/Machine)', target: 'Progressive', reps: '3 sets' },
-    { name: 'Lateral Raises', target: '22lb - 33lb', reps: '3-4 sets', note: '🔥 Makes you "wide"' },
-    { name: 'Tricep Dips (Machine)', target: '93lb - 104lb', reps: '3 sets' },
-    { name: 'Tricep Pushdowns (Cables)', target: 'Progressive', reps: '3 sets' },
-    { name: 'Cardio', target: '128 Calories', reps: '12% Incline', note: '🔥 Don\'t skip cardio!' },
-  ],
-  pull: [
-    { name: 'Lat Pulldowns', target: 'Progressive', reps: '3-4 sets', note: '🔥 Widens the back, makes waist look smaller' },
-    { name: 'Seated Cable Rows', target: 'Progressive', reps: '3 sets', note: 'Adds thickness to middle back' },
-    { name: 'Face Pulls', target: 'Light-Medium', reps: '3 sets', note: 'Rear delts for 3D shoulder look' },
-    { name: 'Bicep Curls (Dumbbell/Ez-Bar)', target: 'Progressive', reps: '3 sets' },
-    { name: 'Hammer Curls', target: 'Progressive', reps: '3 sets', note: 'For forearm and bicep thickness' },
-    { name: 'Cardio', target: '128 Calories', reps: '12% Incline', note: '🔥 Don\'t skip cardio!' },
-  ],
-  legs: [
-    { name: 'Leg Press', target: '54kg+', reps: '3-4 sets', note: '🔥 Build powerful legs!' },
-    { name: 'Leg Extensions', target: 'Progressive', reps: '3 sets' },
-    { name: 'Leg Curls', target: 'Progressive', reps: '3 sets' },
-    { name: 'Plank', target: 'Bodyweight', reps: '3 sets × 60s+', note: '🔥 Keeps the stomach tight' },
-    { name: 'Cardio', target: '128 Calories', reps: '12% Incline', note: '🔥 Don\'t skip cardio!' },
-  ],
+// Workout Templates
+const workoutTemplates = {
+  ppl: {
+    name: 'Push/Pull/Legs',
+    description: '6-day aesthetic split',
+    split: [
+      { key: 'push', title: 'Push Day', focus: 'Width and upper-body thickness' },
+      { key: 'pull', title: 'Pull Day', focus: 'The "V" width and arm peak' },
+      { key: 'legs', title: 'Leg Day', focus: 'Power and core stability' },
+    ],
+    exercises: {
+      push: [
+        { name: 'Shoulder Press (Dumbbell/Machine)', target: '12.5kg+', reps: '3-4 sets', note: '🔥 The V-Taper King' },
+        { name: 'Incline Chest Press', target: '7.5kg - 12.5kg', reps: '3-4 sets', note: 'Builds the "upper shelf"' },
+        { name: 'Chest Press (Flat/Machine)', target: 'Progressive', reps: '3 sets' },
+        { name: 'Lateral Raises', target: '22lb - 33lb', reps: '3-4 sets', note: '🔥 Makes you "wide"' },
+        { name: 'Tricep Dips (Machine)', target: '93lb - 104lb', reps: '3 sets' },
+        { name: 'Tricep Pushdowns (Cables)', target: 'Progressive', reps: '3 sets' },
+        { name: 'Cardio', target: '128 Calories', reps: '12% Incline', note: '🔥 Don\'t skip cardio!' },
+      ],
+      pull: [
+        { name: 'Lat Pulldowns', target: 'Progressive', reps: '3-4 sets', note: '🔥 Widens the back, makes waist look smaller' },
+        { name: 'Seated Cable Rows', target: 'Progressive', reps: '3 sets', note: 'Adds thickness to middle back' },
+        { name: 'Face Pulls', target: 'Light-Medium', reps: '3 sets', note: 'Rear delts for 3D shoulder look' },
+        { name: 'Bicep Curls (Dumbbell/Ez-Bar)', target: 'Progressive', reps: '3 sets' },
+        { name: 'Hammer Curls', target: 'Progressive', reps: '3 sets', note: 'For forearm and bicep thickness' },
+        { name: 'Cardio', target: '128 Calories', reps: '12% Incline', note: '🔥 Don\'t skip cardio!' },
+      ],
+      legs: [
+        { name: 'Leg Press', target: '54kg+', reps: '3-4 sets', note: '🔥 Build powerful legs!' },
+        { name: 'Leg Extensions', target: 'Progressive', reps: '3 sets' },
+        { name: 'Leg Curls', target: 'Progressive', reps: '3 sets' },
+        { name: 'Plank', target: 'Bodyweight', reps: '3 sets × 60s+', note: '🔥 Keeps the stomach tight' },
+        { name: 'Cardio', target: '128 Calories', reps: '12% Incline', note: '🔥 Don\'t skip cardio!' },
+      ],
+    },
+  },
+  protocol90: {
+    name: 'Protocol 90',
+    description: '4-day upper/lower (90g protein)',
+    split: [
+      { key: 'upper1', title: 'Upper 1 (Chest/Back/Shoulders)', focus: 'Compound movements, 3×8-10' },
+      { key: 'lower1', title: 'Lower 1 (Legs & Abs)', focus: 'Power and stability, 3×8-12' },
+      { key: 'cardio', title: 'Cardio Day', focus: '20min incline walk only' },
+      { key: 'upper2', title: 'Upper 2 (Arms & Delts)', focus: 'Isolation work, 3×10-15' },
+      { key: 'lower2', title: 'Lower 2 (Volume)', focus: 'Accessory leg work, 3×10-15' },
+    ],
+    exercises: {
+      upper1: [
+        { name: 'Flat Bench Press', target: 'Heavy', reps: '3×8-10', note: '🔥 Core compound - rest 90s' },
+        { name: 'Lat Pulldowns', target: 'Squeeze at bottom', reps: '3×10-12', note: 'Full range of motion' },
+        { name: 'Overhead Shoulder Press', target: 'Seated', reps: '3×8-10', note: 'Keep core tight' },
+        { name: 'Cable Rows (Seated)', target: 'Progressive', reps: '3×12' },
+        { name: 'Tricep Pushdowns', target: 'Controlled', reps: '3×15', note: 'Squeeze at bottom' },
+      ],
+      lower1: [
+        { name: 'Squats', target: 'Weighted', reps: '3×8-10', note: '🔥 Warm up with bodyweight first' },
+        { name: 'Leg Press', target: 'Progressive', reps: '3×10-12' },
+        { name: 'Leg Curls (Hamstrings)', target: 'Focus on eccentric', reps: '3×12' },
+        { name: 'Calf Raises', target: 'Full stretch', reps: '3×15' },
+        { name: 'Plank', target: 'Bodyweight', reps: '3×60s', note: '🔥 Holds, no movement' },
+      ],
+      cardio: [
+        { name: 'Incline Walk', target: '130-140 cal', reps: '20 minutes', note: '🔥 12% incline, 4.5-5.0 km/h, NO handrails' },
+      ],
+      upper2: [
+        { name: 'Incline Dumbbell Press', target: 'Moderate', reps: '3×10', note: 'Focus on upper chest' },
+        { name: 'Side Lateral Raises', target: 'Strict form', reps: '3×15', note: '🔥 Makes you wide' },
+        { name: 'Bicep Curls (Dumbbell)', target: 'Progressive', reps: '3×10-12', note: 'Full contraction' },
+        { name: 'Face Pulls / Rear Delt Fly', target: 'Light-Medium', reps: '3×15', note: 'Rear delts for 3D look' },
+        { name: 'Pushups', target: 'Bodyweight', reps: '2×AMRAP', note: 'Until failure' },
+      ],
+      lower2: [
+        { name: 'Lunges (Walking/Static)', target: 'Bodyweight or light', reps: '3×10 each leg', note: 'Balance and stability' },
+        { name: 'Leg Extensions', target: 'Burnout set', reps: '3×15', note: 'Quad isolation' },
+        { name: 'Crunches / Leg Raises', target: 'Bodyweight', reps: '3×15', note: 'Abs focus' },
+      ],
+    },
+  },
 }
+
+// Legacy references for backward compatibility
+const split = workoutTemplates.ppl.split
+const exercises = workoutTemplates.ppl.exercises
+
 
 export default function Gym() {
   const todayISO = toISODate(startOfToday())
+  const [selectedTemplate, setSelectedTemplate] = useLocalStorageState('zt.gym.template', 'ppl')
   const [anchorDate, setAnchorDate] = useLocalStorageState('zt.gym.anchorDate', todayISO)
   const [anchorIndex, setAnchorIndex] = useLocalStorageState('zt.gym.anchorIndex', 0)
   const [workouts, setWorkouts] = useLocalStorageState('zt.gym.workouts', [])
   const [photos, setPhotos] = useLocalStorageState('zt.gym.photos', [])
 
   const [swapOpen, setSwapOpen] = useState(false)
-  const [didKey, setDidKey] = useState(split[0].key)
+  const [didKey, setDidKey] = useState(null)
   const [logExercise, setLogExercise] = useState(null)
   const [sets, setSets] = useState([{ weight: '', reps: '' }])
   const [notes, setNotes] = useState('')
@@ -101,14 +155,19 @@ export default function Gym() {
   const [historyOpen, setHistoryOpen] = useState(false)
   const fileInputRef = useRef(null)
 
+  // Get current template data
+  const currentTemplate = workoutTemplates[selectedTemplate] || workoutTemplates.ppl
+  const currentSplit = currentTemplate.split
+  const currentExercises = currentTemplate.exercises
+
   const todayIndex = useMemo(() => {
     const diff = dayDiff(anchorDate, todayISO)
-    const idx = (((Number(anchorIndex) || 0) + diff) % split.length + split.length) % split.length
+    const idx = (((Number(anchorIndex) || 0) + diff) % currentSplit.length + currentSplit.length) % currentSplit.length
     return idx
-  }, [anchorDate, anchorIndex, todayISO])
+  }, [anchorDate, anchorIndex, todayISO, currentSplit.length])
 
-  const todayWorkout = split[todayIndex]
-  const todayExercises = exercises[todayWorkout.key] || []
+  const todayWorkout = currentSplit[todayIndex]
+  const todayExercises = currentExercises[todayWorkout.key] || []
 
   useEffect(() => {
     setDidKey(todayWorkout.key)
@@ -126,11 +185,11 @@ export default function Gym() {
   }, [goalDate])
 
   function applySwap() {
-    const desiredIndex = split.findIndex((s) => s.key === didKey)
+    const desiredIndex = currentSplit.findIndex((s) => s.key === didKey)
     if (desiredIndex < 0) return
     const diff = dayDiff(anchorDate, todayISO)
     const newAnchorIndex = desiredIndex - diff
-    setAnchorIndex(((newAnchorIndex % split.length) + split.length) % split.length)
+    setAnchorIndex(((newAnchorIndex % currentSplit.length) + currentSplit.length) % currentSplit.length)
     setAnchorDate(todayISO)
     setSwapOpen(false)
   }
@@ -250,10 +309,19 @@ export default function Gym() {
             <div className="mt-1 text-2xl font-extrabold text-slate-50">Today is {todayWorkout.title}</div>
             <div className="mt-1 text-sm text-slate-300">Focus: <span className="font-semibold text-emerald-400">{todayWorkout.focus}</span></div>
           </div>
-          <div className="rounded-xl bg-slate-900/60 px-3 py-2 text-xs font-semibold text-slate-300">
-            Split: Push → Pull → Legs
-          </div>
+          <button
+            type="button"
+            onClick={() => setSelectedTemplate(selectedTemplate === 'ppl' ? 'protocol90' : 'ppl')}
+            className="rounded-xl bg-slate-900/60 px-3 py-2 text-xs font-semibold text-slate-300 hover:bg-slate-800 active:scale-[0.98] transition-all"
+          >
+            <div className="flex items-center gap-1.5">
+              <ArrowLeftRight className="h-3 w-3" />
+              <span>{currentTemplate.name}</span>
+            </div>
+            <div className="text-[10px] text-slate-500 mt-0.5">{currentTemplate.description}</div>
+          </button>
         </div>
+
 
         <div className="mt-4 grid grid-cols-2 gap-3">
           <div className="rounded-2xl border border-slate-800 bg-slate-900/30 p-3">
@@ -291,7 +359,7 @@ export default function Gym() {
           <div className="mt-3 rounded-2xl border border-slate-800 bg-slate-900/30 p-3">
             <div className="text-sm font-semibold text-slate-200">What did you actually do today?</div>
             <div className="mt-2 grid grid-cols-2 gap-2">
-              {split.map((s) => (
+              {currentSplit.map((s) => (
                 <button
                   key={s.key}
                   type="button"

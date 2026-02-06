@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { MinusCircle, PlusCircle, UtensilsCrossed, History, Trash2, Plus, X } from 'lucide-react'
+import { MinusCircle, PlusCircle, UtensilsCrossed, History, Trash2, Plus, X, Calendar } from 'lucide-react'
 
 function toISODate(d) {
   const yyyy = d.getFullYear()
@@ -78,6 +78,7 @@ export default function Budget({ onCheatToast }) {
   const [showAddButton, setShowAddButton] = useState(false)
   const [newButtonLabel, setNewButtonLabel] = useState('')
   const [newButtonAmount, setNewButtonAmount] = useState('')
+  const [selectedDate, setSelectedDate] = useState(todayISO) // For logging on past dates
   const cheatAmountRef = useRef(null)
 
   const daysLeft = useMemo(() => daysRemainingInclusive(monthEndDate), [monthEndDate])
@@ -97,12 +98,16 @@ export default function Budget({ onCheatToast }) {
     const amt = Number(amount)
     if (!Number.isFinite(amt) || amt <= 0) return
 
-    setBalance((b) => Math.max(0, Number(b || 0) - amt))
+    // Only deduct from balance if entry is for today
+    if (selectedDate === todayISO) {
+      setBalance((b) => Math.max(0, Number(b || 0) - amt))
+    }
+
     setTransactions((prev) => [
       ...(Array.isArray(prev) ? prev : []),
       {
         id: crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`,
-        date: todayISO,
+        date: selectedDate, // Use selected date instead of always today
         label,
         amount: amt,
         ...meta,
@@ -162,7 +167,8 @@ export default function Budget({ onCheatToast }) {
     setCustomButtons((prev) => prev.filter((b) => b.key !== key))
   }
 
-  const todayTransactions = transactions.filter((t) => t?.date === todayISO).reverse()
+  const selectedDateTransactions = transactions.filter((t) => t?.date === selectedDate).reverse()
+  const isViewingToday = selectedDate === todayISO
 
   return (
     <div className="space-y-4">
@@ -204,15 +210,49 @@ export default function Budget({ onCheatToast }) {
           className="mt-3 inline-flex items-center gap-2 rounded-lg border border-slate-800 bg-slate-900/50 px-3 py-2 text-xs font-semibold text-slate-300 hover:bg-slate-900"
         >
           <History className="h-3 w-3" />
-          {showHistory ? 'Hide' : 'Show'} Today's History ({todayTransactions.length})
+          {showHistory ? 'Hide' : 'Show'} {isViewingToday ? "Today's" : selectedDate} History ({selectedDateTransactions.length})
         </button>
       </div>
 
-      {showHistory && todayTransactions.length > 0 && (
+      {/* Date Picker for logging past entries */}
+      <div className="rounded-2xl border border-slate-800 bg-slate-950/50 p-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="text-xs font-semibold tracking-wide text-slate-400">LOG DATE</div>
+            <div className="mt-1 text-sm text-slate-300">Select a date to add or view entries</div>
+          </div>
+          {selectedDate !== todayISO && (
+            <button
+              type="button"
+              onClick={() => setSelectedDate(todayISO)}
+              className="rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-extrabold text-slate-900 hover:bg-emerald-400"
+            >
+              Back to Today
+            </button>
+          )}
+        </div>
+        <div className="mt-3 flex items-center gap-3">
+          <Calendar className="h-5 w-5 text-emerald-400" />
+          <input
+            type="date"
+            value={selectedDate}
+            onChange={(e) => setSelectedDate(e.target.value)}
+            max={todayISO}
+            className="flex-1 rounded-xl border border-slate-800 bg-slate-900/40 px-4 py-2.5 text-sm font-semibold text-slate-100 outline-none"
+          />
+        </div>
+        {selectedDate !== todayISO && (
+          <div className="mt-2 rounded-lg border border-amber-500/30 bg-amber-950/20 px-3 py-2 text-xs text-amber-300">
+            📅 Logging for: {selectedDate} (entries won't affect today's balance)
+          </div>
+        )}
+      </div>
+
+      {showHistory && selectedDateTransactions.length > 0 && (
         <div className="rounded-2xl border border-slate-800 bg-slate-950/50 p-4">
-          <div className="text-xs font-semibold tracking-wide text-slate-400">TODAY'S TRANSACTIONS</div>
+          <div className="text-xs font-semibold tracking-wide text-slate-400">{isViewingToday ? "TODAY'S" : selectedDate} TRANSACTIONS</div>
           <div className="mt-3 space-y-2">
-            {todayTransactions.map((txn) => (
+            {selectedDateTransactions.map((txn) => (
               <div key={txn.id} className="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-900/30 px-3 py-2">
                 <div className="flex-1">
                   <div className="text-sm font-semibold text-slate-100">{txn.label}</div>
@@ -395,7 +435,7 @@ export default function Budget({ onCheatToast }) {
           </button>
         </div>
       </div>
-    </div>
+    </div >
   )
 }
 

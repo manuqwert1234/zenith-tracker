@@ -10,33 +10,71 @@ const auth = getAuth(app)
 const db = getFirestore(app)
 const storage = getStorage(app)
 
+// Initialize Google Provider
+const googleProvider = new GoogleAuthProvider()
+
 let currentUser = null
 let syncEnabled = false
 
-// Initialize anonymous authentication
+// Initialize authentication
 export async function initializeAuth() {
     return new Promise((resolve, reject) => {
-        onAuthStateChanged(auth, async (user) => {
+        const unsubscribe = onAuthStateChanged(auth, async (user) => {
             if (user) {
                 currentUser = user
                 syncEnabled = true
-                console.log('✓ Firebase authenticated:', user.uid)
+                console.log('✓ Firebase authenticated:', user.uid, user.isAnonymous ? '(Anonymous)' : '(Verified)')
                 resolve(user)
             } else {
+                // If no user, standard flow waits for manual login or auto-signs in anonymously
+                // For this app, we default to anonymous if not logged in
                 try {
                     const result = await signInAnonymously(auth)
                     currentUser = result.user
                     syncEnabled = true
-                    console.log('✓ Firebase signed in anonymously:', result.user.uid)
+                    console.log('✓ Created new anonymous session:', result.user.uid)
                     resolve(result.user)
                 } catch (error) {
-                    console.error('Firebase auth error:', error)
+                    console.error('Auth initialization error:', error)
                     syncEnabled = false
                     reject(error)
                 }
             }
+            // unsubscribe() // Don't unsubscribe, we want to listen for auth changes (like linking)
         })
     })
+}
+
+export async function signInWithGoogle() {
+    if (!auth) throw new Error('Auth not initialized')
+
+    try {
+        // If currently anonymous, try to link first
+        if (currentUser && currentUser.isAnonymous) {
+            try {
+                const result = await linkWithPopup(currentUser, googleProvider)
+                console.log('✓ Linked anonymous account to Google:', result.user.uid)
+                return { success: true, user: result.user, method: 'linked' }
+            } catch (linkError) {
+                // If linking fails (e.g. email already in use), fall back to normal sign in
+                if (linkError.code === 'auth/credential-already-in-use') {
+                    // This means the Google account already exists. We must sign in to it.
+                    // WARNING: This switches the user and might "hide" current anonymous data locally unless we merge.
+                    // For now, let's just sign in.
+                    const result = await signInWithPopup(auth, googleProvider)
+                    console.log('✓ Signed in to existing Google account:', result.user.uid)
+                    return { success: true, user: result.user, method: 'signin' }
+                }
+                throw linkError
+            }
+        } else {
+            const result = await signInWithPopup(auth, googleProvider)
+            return { success: true, user: result.user, method: 'signin' }
+        }
+    } catch (error) {
+        console.error('Google sign-in error:', error)
+        return { success: false, error: error.message }
+    }
 }
 
 // Get current user ID

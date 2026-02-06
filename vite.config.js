@@ -11,10 +11,15 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['vite.svg'],
+      workbox: {
+        skipWaiting: true,
+        clientsClaim: true,
+        cleanupOutdatedCaches: true,
+      },
       manifest: {
         name: 'ZenithTracker',
         short_name: 'Zenith',
-        description: 'Mobile-first budget + gym tracker for VIT Chennai',
+        description: 'Mobile-first budget + gym tracker for VIT Chennai - v2.1',
         theme_color: '#0f172a',
         background_color: '#0f172a',
         display: 'standalone',

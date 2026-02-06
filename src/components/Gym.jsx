@@ -96,6 +96,8 @@ const workoutTemplates = {
       { key: 'cardio', title: 'Cardio Day', focus: '20min incline walk only' },
       { key: 'upper2', title: 'Upper 2 (Arms & Delts)', focus: 'Isolation work, 3×10-15' },
       { key: 'lower2', title: 'Lower 2 (Volume)', focus: 'Accessory leg work, 3×10-15' },
+      { key: 'rest1', title: 'Active Rest', focus: 'Cardio only - recovery day' },
+      { key: 'rest2', title: 'Active Rest', focus: 'Cardio only - recovery day' },
     ],
     exercises: {
       upper1: [
@@ -126,6 +128,12 @@ const workoutTemplates = {
         { name: 'Lunges (Walking/Static)', target: 'Bodyweight or light', reps: '3×10 each leg', note: 'Balance and stability' },
         { name: 'Leg Extensions', target: 'Burnout set', reps: '3×15', note: 'Quad isolation' },
         { name: 'Crunches / Leg Raises', target: 'Bodyweight', reps: '3×15', note: 'Abs focus' },
+      ],
+      rest1: [
+        { name: 'Incline Walk', target: '130-140 cal', reps: '20 minutes', note: '🧘 Recovery day - NO weights, just cardio' },
+      ],
+      rest2: [
+        { name: 'Incline Walk', target: '130-140 cal', reps: '20 minutes', note: '🧘 Recovery day - NO weights, just cardio' },
       ],
     },
   },
@@ -338,13 +346,65 @@ export default function Gym() {
           <div className="rounded-2xl border border-slate-800 bg-slate-900/30 p-3">
             <div className="flex items-center gap-2 text-xs font-semibold text-slate-400">
               <Dumbbell className="h-4 w-4 text-emerald-400" />
-              Quick Tip
+              {selectedTemplate === 'protocol90' ? 'Weeks Left' : 'Quick Tip'}
             </div>
-            <div className="mt-2 text-sm text-slate-300">
-              On Pull days, keep elbows driving down and pause 1 sec at the bottom for lat engagement.
-            </div>
+            {selectedTemplate === 'protocol90' ? (
+              <div className="mt-2">
+                <div className="text-lg font-extrabold text-slate-50">{Math.floor(countdown.days / 7)} weeks</div>
+                <div className="text-sm text-slate-400">{Math.floor(countdown.days / 7)} full cycles of Protocol 90</div>
+              </div>
+            ) : (
+              <div className="mt-2 text-sm text-slate-300">
+                On Pull days, keep elbows driving down and pause 1 sec at the bottom for lat engagement.
+              </div>
+            )}
           </div>
         </div>
+
+        {/* Protocol 90 Weekly Schedule */}
+        {selectedTemplate === 'protocol90' && (
+          <div className="mt-4 rounded-2xl border border-amber-500/30 bg-amber-950/10 p-4">
+            <div className="text-xs font-semibold tracking-wide text-amber-400">PROTOCOL 90 • 7-DAY CYCLE</div>
+            <div className="mt-3 grid grid-cols-7 gap-1">
+              {['D1', 'D2', 'D3', 'D4', 'D5', 'D6', 'D7'].map((day, i) => {
+                const dayData = currentSplit[i]
+                const isToday = i === todayIndex
+                const isRest = dayData?.key?.startsWith('rest')
+                const isCardio = dayData?.key === 'cardio'
+                return (
+                  <div
+                    key={day}
+                    className={[
+                      'rounded-lg p-2 text-center text-[10px] font-bold',
+                      isToday
+                        ? 'border-2 border-emerald-400 bg-emerald-500/20 text-emerald-300'
+                        : isRest
+                          ? 'border border-slate-700 bg-slate-900/50 text-slate-500'
+                          : isCardio
+                            ? 'border border-blue-500/30 bg-blue-950/20 text-blue-300'
+                            : 'border border-slate-700 bg-slate-900/30 text-slate-300',
+                    ].join(' ')}
+                  >
+                    <div className="text-[9px] opacity-60">{day}</div>
+                    <div className="mt-0.5 truncate">
+                      {dayData?.key === 'upper1' ? 'UPR1' :
+                        dayData?.key === 'upper2' ? 'UPR2' :
+                          dayData?.key === 'lower1' ? 'LWR1' :
+                            dayData?.key === 'lower2' ? 'LWR2' :
+                              dayData?.key === 'cardio' ? '🚶' :
+                                '😴'}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+            <div className="mt-2 flex justify-between text-[10px] text-slate-500">
+              <span>🔥 Weights: 4 days</span>
+              <span>🚶 Cardio: Every day</span>
+              <span>😴 Rest: 2 days</span>
+            </div>
+          </div>
+        )}
 
         <button
           type="button"

@@ -67,13 +67,37 @@ export function exportGymToExcel(workouts) {
 }
 
 /**
- * Export all data (budget and gym) to a single Excel file
+ * Export protein log to Excel
+ */
+export function exportProteinToExcel(proteinLog) {
+    if (!proteinLog || proteinLog.length === 0) {
+        return null
+    }
+
+    // Format protein log for Excel
+    const formattedData = proteinLog.map((entry) => ({
+        Date: entry.date || '',
+        Time: entry.time || '',
+        Food: entry.name || '',
+        Protein: entry.protein || 0,
+        Calories: entry.calories || 0,
+        Quantity: entry.quantity || 1,
+        Unit: entry.unit || '',
+        FoodKey: entry.foodKey || '',
+    }))
+
+    return formattedData
+}
+
+/**
+ * Export all data (budget, gym, and protein) to a single Excel file
  */
 export function exportAllToExcel() {
     try {
         // Get data from localStorage
         const budgetTransactions = JSON.parse(localStorage.getItem('zt.transactions') || '[]')
         const gymWorkouts = JSON.parse(localStorage.getItem('zt.gym.workouts') || '[]')
+        const proteinLog = JSON.parse(localStorage.getItem('zt.proteinLog') || '[]')
 
         // Create workbook
         const workbook = XLSX.utils.book_new()
@@ -92,6 +116,13 @@ export function exportAllToExcel() {
             XLSX.utils.book_append_sheet(workbook, gymSheet, 'Gym Workouts')
         }
 
+        // Add Protein sheet
+        const proteinData = exportProteinToExcel(proteinLog)
+        if (proteinData && proteinData.length > 0) {
+            const proteinSheet = XLSX.utils.json_to_sheet(proteinData)
+            XLSX.utils.book_append_sheet(workbook, proteinSheet, 'Protein Log')
+        }
+
         // Check if we have any data
         if (workbook.SheetNames.length === 0) {
             return { success: false, message: 'No data to export' }
@@ -107,7 +138,7 @@ export function exportAllToExcel() {
 
         return {
             success: true,
-            message: `Exported ${budgetData?.length || 0} transactions and ${gymData?.length || 0} workout entries`,
+            message: `Exported ${budgetData?.length || 0} transactions, ${gymData?.length || 0} workouts, and ${proteinData?.length || 0} protein entries`,
             filename
         }
     } catch (error) {
@@ -244,20 +275,66 @@ export function importFromExcel(file) {
                     }
                 }
 
+                // Import Protein sheet (if exists)
+                let proteinCount = 0
+                const proteinSheetName = workbook.SheetNames.find(name =>
+                    name.toLowerCase().includes('protein') ||
+                    name.toLowerCase().includes('food') ||
+                    name.toLowerCase().includes('nutrition')
+                )
+
+                if (proteinSheetName) {
+                    const sheet = workbook.Sheets[proteinSheetName]
+                    const jsonData = XLSX.utils.sheet_to_json(sheet)
+                    console.log('🍗 Protein data rows:', jsonData.length)
+
+                    // Detect if this is protein data (has Protein/Food columns)
+                    const hasProteinColumns = jsonData.length > 0 && (
+                        'Protein' in jsonData[0] ||
+                        'protein' in jsonData[0] ||
+                        'Food' in jsonData[0] ||
+                        'food' in jsonData[0]
+                    )
+
+                    if (hasProteinColumns) {
+                        const proteinLog = jsonData
+                            .filter(row => row.Date || row.date)
+                            .map(row => ({
+                                id: `food-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+                                date: row.Date || row.date || '',
+                                time: row.Time || row.time || '',
+                                name: row.Food || row.food || row.Name || row.name || 'Unknown',
+                                protein: Number(row.Protein || row.protein || 0),
+                                calories: Number(row.Calories || row.calories || 0),
+                                quantity: Number(row.Quantity || row.quantity || 1),
+                                unit: row.Unit || row.unit || '',
+                                foodKey: row.FoodKey || row.foodKey || 'custom',
+                                emoji: '🍽️',
+                            }))
+
+                        // Replace existing data
+                        localStorage.setItem('zt.proteinLog', JSON.stringify(proteinLog))
+                        proteinCount = proteinLog.length
+                        console.log('✅ Imported protein entries:', proteinCount)
+                    }
+                } else {
+                    console.log('ℹ️ No protein sheet found - existing protein log preserved')
+                }
+
                 // Check if we imported anything
-                if (budgetCount === 0 && gymCount === 0) {
+                if (budgetCount === 0 && gymCount === 0 && proteinCount === 0) {
                     console.warn('⚠️ No data imported. Sheets found:', workbook.SheetNames)
                     resolve({
                         success: false,
-                        message: `No compatible data found. Sheets: ${workbook.SheetNames.join(', ')}. Need Budget or Gym data.`
+                        message: `No compatible data found. Sheets: ${workbook.SheetNames.join(', ')}. Need Budget, Gym or Protein data.`
                     })
                     return
                 }
 
-                console.log('🎉 Import complete:', { budgetCount, gymCount })
+                console.log('🎉 Import complete:', { budgetCount, gymCount, proteinCount })
                 resolve({
                     success: true,
-                    message: `Imported ${budgetCount} budget entries and ${gymCount} workouts`,
+                    message: `Imported ${budgetCount} budget, ${gymCount} workouts, ${proteinCount} protein entries`,
                     budgetCount,
                     gymCount
                 })

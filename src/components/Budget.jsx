@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { MinusCircle, PlusCircle, UtensilsCrossed, History, Trash2, Plus, X, Calendar } from 'lucide-react'
+import { MinusCircle, PlusCircle, UtensilsCrossed, History, Trash2, Plus, X, Calendar, Beef, AlertTriangle, Target } from 'lucide-react'
+import { foodDatabase, PROTEIN_GOAL, CALORIE_GOAL, quickAddItems } from '../config/foods'
 
 function toISODate(d) {
   const yyyy = d.getFullYear()
@@ -72,6 +73,11 @@ export default function Budget({ onCheatToast }) {
   const [transactions, setTransactions] = useLocalStorageState('zt.transactions', [])
   const [customButtons, setCustomButtons] = useLocalStorageState('zt.customButtons', [])
 
+  // Protein tracking state
+  const [proteinLog, setProteinLog] = useLocalStorageState('zt.proteinLog', [])
+  const [showProteinModal, setShowProteinModal] = useState(false)
+  const [selectedFoodCategory, setSelectedFoodCategory] = useState('all')
+
   const [cheatAmount, setCheatAmount] = useState('')
   const [cheatNote, setCheatNote] = useState('')
   const [showHistory, setShowHistory] = useState(false)
@@ -83,6 +89,21 @@ export default function Budget({ onCheatToast }) {
 
   const daysLeft = useMemo(() => daysRemainingInclusive(monthEndDate), [monthEndDate])
   const dailyLimit = useMemo(() => (daysLeft > 0 ? balance / daysLeft : balance), [balance, daysLeft])
+
+  // Protein tracking computed values
+  const todaysProtein = useMemo(() => {
+    return (proteinLog || [])
+      .filter((p) => p?.date === todayISO)
+      .reduce((sum, p) => sum + (Number(p?.protein) || 0), 0)
+  }, [proteinLog, todayISO])
+
+  const todaysCalories = useMemo(() => {
+    return (proteinLog || [])
+      .filter((p) => p?.date === todayISO)
+      .reduce((sum, p) => sum + (Number(p?.calories) || 0), 0)
+  }, [proteinLog, todayISO])
+
+  const proteinProgress = Math.min((todaysProtein / PROTEIN_GOAL) * 100, 100)
 
   const todaysSpend = useMemo(() => {
     return (transactions || [])
@@ -167,6 +188,37 @@ export default function Budget({ onCheatToast }) {
     setCustomButtons((prev) => prev.filter((b) => b.key !== key))
   }
 
+  // Protein tracking functions
+  function logFood(foodKey, quantity = 1) {
+    const food = foodDatabase[foodKey]
+    if (!food) return
+
+    const entry = {
+      id: `food-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      date: todayISO,
+      time: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
+      foodKey,
+      name: food.name,
+      protein: food.protein * quantity,
+      calories: food.calories * quantity,
+      quantity,
+      unit: food.unit,
+      emoji: food.emoji,
+    }
+
+    setProteinLog((prev) => [...prev, entry])
+    setShowProteinModal(false)
+  }
+
+  function deleteProteinEntry(entryId) {
+    setProteinLog((prev) => prev.filter((p) => p.id !== entryId))
+  }
+
+  const todaysProteinLog = (proteinLog || []).filter((p) => p?.date === todayISO).reverse()
+
+  // Get unique categories from food database
+  const foodCategories = [...new Set(Object.values(foodDatabase).map(f => f.category))]
+
   const selectedDateTransactions = transactions.filter((t) => t?.date === selectedDate).reverse()
   const isViewingToday = selectedDate === todayISO
 
@@ -213,6 +265,192 @@ export default function Budget({ onCheatToast }) {
           {showHistory ? 'Hide' : 'Show'} {isViewingToday ? "Today's" : selectedDate} History ({selectedDateTransactions.length})
         </button>
       </div>
+
+      {/* PROTOCOL 90 PROTEIN TRACKER */}
+      <div className="rounded-2xl border border-amber-500/30 bg-amber-950/10 p-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="flex items-center gap-2 text-xs font-semibold tracking-wide text-amber-400">
+              <Beef className="h-4 w-4" />
+              PROTEIN TRACKER • PROTOCOL 90
+            </div>
+            <div className="mt-2 flex items-baseline gap-2">
+              <span className="text-3xl font-extrabold text-slate-50">{Math.round(todaysProtein)}g</span>
+              <span className="text-sm text-slate-400">/ {PROTEIN_GOAL}g goal</span>
+            </div>
+          </div>
+          <div className="text-right">
+            <div className="text-xs text-slate-500">Calories</div>
+            <div className={`text-lg font-bold ${todaysCalories > CALORIE_GOAL ? 'text-rose-400' : 'text-slate-300'}`}>
+              {Math.round(todaysCalories)} kcal
+            </div>
+            <div className="text-[10px] text-slate-500">/ {CALORIE_GOAL} limit</div>
+          </div>
+        </div>
+
+        {/* Progress bar */}
+        <div className="mt-3">
+          <div className="h-3 w-full overflow-hidden rounded-full bg-slate-800">
+            <div
+              className={`h-full transition-all duration-300 ${todaysProtein >= PROTEIN_GOAL
+                  ? 'bg-emerald-500'
+                  : todaysProtein >= PROTEIN_GOAL * 0.7
+                    ? 'bg-amber-500'
+                    : 'bg-amber-700'
+                }`}
+              style={{ width: `${proteinProgress}%` }}
+            />
+          </div>
+          <div className="mt-1 flex justify-between text-[10px] text-slate-500">
+            <span>{Math.round(proteinProgress)}% of daily goal</span>
+            <span>{Math.round(PROTEIN_GOAL - todaysProtein)}g remaining</span>
+          </div>
+        </div>
+
+        {/* Quick add buttons */}
+        <div className="mt-4">
+          <div className="text-xs font-semibold text-slate-400 mb-2">QUICK ADD</div>
+          <div className="grid grid-cols-3 gap-2">
+            {quickAddItems.map((foodKey) => {
+              const food = foodDatabase[foodKey]
+              if (!food) return null
+              return (
+                <button
+                  key={foodKey}
+                  type="button"
+                  onClick={() => logFood(foodKey)}
+                  className="rounded-xl border border-slate-700 bg-slate-900/50 px-2 py-2.5 text-left hover:bg-slate-800 active:scale-[0.98] transition-all"
+                >
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-sm">{food.emoji}</span>
+                    <span className="text-xs font-semibold text-slate-200 truncate">{food.name}</span>
+                  </div>
+                  <div className="mt-0.5 text-[10px] text-emerald-400 font-bold">{food.protein}g protein</div>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* View all foods button */}
+        <button
+          type="button"
+          onClick={() => setShowProteinModal(true)}
+          className="mt-3 w-full rounded-xl border border-slate-700 bg-slate-900/40 px-4 py-2.5 text-sm font-semibold text-slate-300 hover:bg-slate-800"
+        >
+          <Plus className="inline h-4 w-4 mr-1" /> Add All Foods
+        </button>
+
+        {/* Today's food log */}
+        {todaysProteinLog.length > 0 && (
+          <div className="mt-4">
+            <div className="text-xs font-semibold text-slate-400 mb-2">TODAY'S LOG ({todaysProteinLog.length})</div>
+            <div className="space-y-2 max-h-48 overflow-y-auto">
+              {todaysProteinLog.map((entry) => (
+                <div
+                  key={entry.id}
+                  className="flex items-center justify-between rounded-lg border border-slate-800 bg-slate-900/30 px-3 py-2"
+                >
+                  <div className="flex items-center gap-2">
+                    <span>{entry.emoji}</span>
+                    <div>
+                      <div className="text-sm font-semibold text-slate-200">{entry.name}</div>
+                      <div className="text-[10px] text-slate-500">{entry.time} • {entry.quantity} {entry.unit}</div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="text-right">
+                      <div className="text-xs font-bold text-emerald-400">{entry.protein}g</div>
+                      <div className="text-[10px] text-slate-500">{entry.calories} kcal</div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => deleteProteinEntry(entry.id)}
+                      className="text-slate-500 hover:text-rose-400"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Food Selection Modal */}
+      {showProteinModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+          <div className="max-h-[85vh] w-full max-w-md overflow-hidden rounded-2xl border border-slate-700 bg-slate-900">
+            <div className="flex items-center justify-between border-b border-slate-700 px-4 py-3">
+              <div className="text-lg font-bold text-slate-100">Add Food</div>
+              <button type="button" onClick={() => setShowProteinModal(false)} className="text-slate-400 hover:text-slate-200">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Category filter */}
+            <div className="flex gap-2 overflow-x-auto px-4 py-3 border-b border-slate-800">
+              <button
+                type="button"
+                onClick={() => setSelectedFoodCategory('all')}
+                className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${selectedFoodCategory === 'all' ? 'bg-emerald-500 text-slate-900' : 'bg-slate-800 text-slate-300'
+                  }`}
+              >
+                All
+              </button>
+              {foodCategories.map((cat) => (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => setSelectedFoodCategory(cat)}
+                  className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold capitalize ${selectedFoodCategory === cat ? 'bg-emerald-500 text-slate-900' : 'bg-slate-800 text-slate-300'
+                    }`}
+                >
+                  {cat === 'danger' ? '⚠️ Danger' : cat}
+                </button>
+              ))}
+            </div>
+
+            {/* Food list */}
+            <div className="max-h-[55vh] overflow-y-auto p-4 space-y-2">
+              {Object.entries(foodDatabase)
+                .filter(([, food]) => selectedFoodCategory === 'all' || food.category === selectedFoodCategory)
+                .map(([key, food]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => logFood(key)}
+                    className={`w-full rounded-xl border px-4 py-3 text-left transition-all hover:scale-[0.99] active:scale-[0.97] ${food.category === 'danger'
+                        ? 'border-rose-500/30 bg-rose-950/20 hover:bg-rose-950/30'
+                        : 'border-slate-700 bg-slate-800/50 hover:bg-slate-800'
+                      }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg">{food.emoji}</span>
+                        <div>
+                          <div className="font-semibold text-slate-100">{food.name}</div>
+                          <div className="text-xs text-slate-400">{food.unit}</div>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-sm font-bold text-emerald-400">{food.protein}g</div>
+                        <div className="text-xs text-slate-500">{food.calories} kcal</div>
+                      </div>
+                    </div>
+                    {food.warning && (
+                      <div className="mt-2 flex items-center gap-1 text-[10px] text-rose-400">
+                        <AlertTriangle className="h-3 w-3" />
+                        {food.warning}
+                      </div>
+                    )}
+                  </button>
+                ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Date Picker for logging past entries */}
       <div className="rounded-2xl border border-slate-800 bg-slate-950/50 p-4">

@@ -106,6 +106,7 @@ const workoutTemplates = {
         { name: 'Overhead Shoulder Press', target: 'Seated', reps: '3×8-10', note: 'Keep core tight' },
         { name: 'Cable Rows (Seated)', target: 'Progressive', reps: '3×12' },
         { name: 'Tricep Pushdowns', target: 'Controlled', reps: '3×15', note: 'Squeeze at bottom' },
+        { name: 'Incline Walk', target: '130-140 cal', reps: '20 minutes', note: '🔥 Daily Cardio: 12% incline, 4.5-5.0 km/h' },
       ],
       lower1: [
         { name: 'Squats', target: 'Weighted', reps: '3×8-10', note: '🔥 Warm up with bodyweight first' },
@@ -113,6 +114,7 @@ const workoutTemplates = {
         { name: 'Leg Curls (Hamstrings)', target: 'Focus on eccentric', reps: '3×12' },
         { name: 'Calf Raises', target: 'Full stretch', reps: '3×15' },
         { name: 'Plank', target: 'Bodyweight', reps: '3×60s', note: '🔥 Holds, no movement' },
+        { name: 'Incline Walk', target: '130-140 cal', reps: '20 minutes', note: '🔥 Daily Cardio: 12% incline, 4.5-5.0 km/h' },
       ],
       cardio: [
         { name: 'Incline Walk', target: '130-140 cal', reps: '20 minutes', note: '🔥 12% incline, 4.5-5.0 km/h, NO handrails' },
@@ -123,11 +125,13 @@ const workoutTemplates = {
         { name: 'Bicep Curls (Dumbbell)', target: 'Progressive', reps: '3×10-12', note: 'Full contraction' },
         { name: 'Face Pulls / Rear Delt Fly', target: 'Light-Medium', reps: '3×15', note: 'Rear delts for 3D look' },
         { name: 'Pushups', target: 'Bodyweight', reps: '2×AMRAP', note: 'Until failure' },
+        { name: 'Incline Walk', target: '130-140 cal', reps: '20 minutes', note: '🔥 Daily Cardio: 12% incline, 4.5-5.0 km/h' },
       ],
       lower2: [
         { name: 'Lunges (Walking/Static)', target: 'Bodyweight or light', reps: '3×10 each leg', note: 'Balance and stability' },
         { name: 'Leg Extensions', target: 'Burnout set', reps: '3×15', note: 'Quad isolation' },
         { name: 'Crunches / Leg Raises', target: 'Bodyweight', reps: '3×15', note: 'Abs focus' },
+        { name: 'Incline Walk', target: '130-140 cal', reps: '20 minutes', note: '🔥 Daily Cardio: 12% incline, 4.5-5.0 km/h' },
       ],
       rest1: [
         { name: 'Incline Walk', target: '130-140 cal', reps: '20 minutes', note: '🧘 Recovery day - NO weights, just cardio' },

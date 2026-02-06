@@ -115,3 +115,106 @@ export function exportAllToExcel() {
         return { success: false, message: `Export failed: ${error.message}` }
     }
 }
+
+/**
+ * Import data from Excel file
+ * Expected sheets: "Budget Transactions" and "Gym Workouts"
+ */
+export function importFromExcel(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader()
+
+        reader.onload = (e) => {
+            try {
+                const data = new Uint8Array(e.target.result)
+                const workbook = XLSX.read(data, { type: 'array' })
+
+                let budgetCount = 0
+                let gymCount = 0
+
+                // Import Budget Transactions
+                if (workbook.SheetNames.includes('Budget Transactions')) {
+                    const sheet = workbook.Sheets['Budget Transactions']
+                    const jsonData = XLSX.utils.sheet_to_json(sheet)
+
+                    const transactions = jsonData.map((row, idx) => ({
+                        id: `imported-${Date.now()}-${idx}`,
+                        date: row.Date || new Date().toISOString().split('T')[0],
+                        label: row.Label || 'Imported Item',
+                        amount: Number(row.Amount) || 0,
+                        type: row.Type || 'other',
+                    }))
+
+                    // Merge with existing data
+                    const existing = JSON.parse(localStorage.getItem('zt.transactions') || '[]')
+                    const merged = [...existing, ...transactions]
+                    localStorage.setItem('zt.transactions', JSON.stringify(merged))
+                    budgetCount = transactions.length
+                }
+
+                // Import Gym Workouts
+                if (workbook.SheetNames.includes('Gym Workouts')) {
+                    const sheet = workbook.Sheets['Gym Workouts']
+                    const jsonData = XLSX.utils.sheet_to_json(sheet)
+
+                    // Group by date and exercise to rebuild workout structure
+                    const workoutMap = new Map()
+
+                    jsonData.forEach((row) => {
+                        const dateKey = row.Date || new Date().toISOString().split('T')[0]
+                        const exerciseName = row.Exercise || 'Unknown Exercise'
+                        const key = `${dateKey}-${exerciseName}`
+
+                        if (!workoutMap.has(key)) {
+                            workoutMap.set(key, {
+                                id: `imported-${Date.now()}-${workoutMap.size}`,
+                                date: dateKey,
+                                dayType: row['Day Type'] || 'custom',
+                                exercises: [{
+                                    name: exerciseName,
+                                    sets: [],
+                                    notes: row.Notes || undefined,
+                                }]
+                            })
+                        }
+
+                        const workout = workoutMap.get(key)
+                        const exercise = workout.exercises[0]
+
+                        // Add set if weight and reps exist
+                        const weight = Number(row['Weight (kg)']) || Number(row.Weight) || 0
+                        const reps = Number(row.Reps) || 0
+
+                        if (weight > 0 || reps > 0) {
+                            exercise.sets.push({ weight, reps })
+                        }
+                    })
+
+                    const workouts = Array.from(workoutMap.values())
+
+                    // Merge with existing data
+                    const existing = JSON.parse(localStorage.getItem('zt.gym.workouts') || '[]')
+                    const merged = [...existing, ...workouts]
+                    localStorage.setItem('zt.gym.workouts', JSON.stringify(merged))
+                    gymCount = workouts.length
+                }
+
+                resolve({
+                    success: true,
+                    message: `Imported ${budgetCount} budget entries and ${gymCount} workouts`,
+                    budgetCount,
+                    gymCount
+                })
+            } catch (error) {
+                console.error('Import failed:', error)
+                reject({ success: false, message: `Import failed: ${error.message}` })
+            }
+        }
+
+        reader.onerror = () => {
+            reject({ success: false, message: 'Failed to read file' })
+        }
+
+        reader.readAsArrayBuffer(file)
+    })
+}

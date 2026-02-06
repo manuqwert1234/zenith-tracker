@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Activity, Dumbbell, PiggyBank, Settings, Bell, BellOff, Download, Cloud, CloudOff, RefreshCw } from 'lucide-react'
+import { Activity, Dumbbell, PiggyBank, Settings, Bell, BellOff, Download, Upload, Cloud, CloudOff, RefreshCw } from 'lucide-react'
 import Budget from './components/Budget.jsx'
 import Gym from './components/Gym.jsx'
 import { requestNotificationPermission, notifyCheatMeal, notifyOverspending } from './utils/notifications.js'
-import { exportAllToExcel } from './utils/exportUtils.js'
+import { exportAllToExcel, importFromExcel } from './utils/exportUtils.js'
 import { initializeAuth, performInitialSync, syncAll, fetchAll, isSyncEnabled, signInWithGoogle } from './services/firebaseSync.js'
 import { getAuth } from 'firebase/auth'
 
@@ -280,14 +280,41 @@ function App() {
               </div>
 
               <div className="mt-4 space-y-2">
-                <button
-                  type="button"
-                  onClick={handleExport}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 px-4 py-3 text-sm font-extrabold text-slate-900 hover:bg-emerald-400 active:scale-[0.99]"
-                >
-                  <Download className="h-4 w-4" />
-                  Export to Excel
-                </button>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={handleExport}
+                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-500 px-4 py-3 text-sm font-extrabold text-slate-900 hover:bg-emerald-400 active:scale-[0.99]"
+                  >
+                    <Download className="h-4 w-4" />
+                    Export
+                  </button>
+                  <label className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-950/20 px-4 py-3 text-sm font-extrabold text-emerald-300 hover:bg-emerald-950/40 active:scale-[0.99] cursor-pointer">
+                    <Upload className="h-4 w-4" />
+                    Import
+                    <input
+                      type="file"
+                      accept=".xlsx,.xls"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0]
+                        if (!file) return
+                        try {
+                          const result = await importFromExcel(file)
+                          if (result.success) {
+                            setToast(`✓ ${result.message}`)
+                            window.location.reload()
+                          } else {
+                            setToast(`❌ ${result.message}`)
+                          }
+                        } catch (err) {
+                          setToast(`❌ Import failed: ${err.message}`)
+                        }
+                        e.target.value = ''
+                      }}
+                    />
+                  </label>
+                </div>
 
                 <div className="grid grid-cols-2 gap-2">
                   <button

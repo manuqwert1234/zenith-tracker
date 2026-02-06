@@ -118,87 +118,143 @@ export function exportAllToExcel() {
 
 /**
  * Import data from Excel file
- * Expected sheets: "Budget Transactions" and "Gym Workouts"
+ * Flexible: tries to detect Budget and Gym sheets by name patterns
  */
 export function importFromExcel(file) {
     return new Promise((resolve, reject) => {
+        console.log('📥 Import started for file:', file.name)
         const reader = new FileReader()
 
         reader.onload = (e) => {
             try {
+                console.log('📄 File loaded, parsing...')
                 const data = new Uint8Array(e.target.result)
                 const workbook = XLSX.read(data, { type: 'array' })
+
+                console.log('📊 Found sheets:', workbook.SheetNames)
 
                 let budgetCount = 0
                 let gymCount = 0
 
-                // Import Budget Transactions
-                if (workbook.SheetNames.includes('Budget Transactions')) {
-                    const sheet = workbook.Sheets['Budget Transactions']
+                // Find budget sheet (flexible matching)
+                const budgetSheetName = workbook.SheetNames.find(name =>
+                    name.toLowerCase().includes('budget') ||
+                    name.toLowerCase().includes('transaction') ||
+                    name.toLowerCase().includes('expense') ||
+                    name.toLowerCase().includes('money')
+                ) || (workbook.SheetNames.length >= 1 ? workbook.SheetNames[0] : null)
+
+                // Find gym sheet (flexible matching)
+                const gymSheetName = workbook.SheetNames.find(name =>
+                    name.toLowerCase().includes('gym') ||
+                    name.toLowerCase().includes('workout') ||
+                    name.toLowerCase().includes('exercise') ||
+                    name.toLowerCase().includes('training')
+                ) || (workbook.SheetNames.length >= 2 ? workbook.SheetNames[1] : null)
+
+                console.log('🎯 Budget sheet:', budgetSheetName, '| Gym sheet:', gymSheetName)
+
+                // Import Budget/First sheet
+                if (budgetSheetName) {
+                    const sheet = workbook.Sheets[budgetSheetName]
                     const jsonData = XLSX.utils.sheet_to_json(sheet)
+                    console.log('💰 Budget data rows:', jsonData.length)
 
-                    const transactions = jsonData.map((row, idx) => ({
-                        id: `imported-${Date.now()}-${idx}`,
-                        date: row.Date || new Date().toISOString().split('T')[0],
-                        label: row.Label || 'Imported Item',
-                        amount: Number(row.Amount) || 0,
-                        type: row.Type || 'other',
-                    }))
+                    // Detect if this is budget data (has Amount/Label columns)
+                    const hasBudgetColumns = jsonData.length > 0 && (
+                        'Amount' in jsonData[0] ||
+                        'amount' in jsonData[0] ||
+                        'Label' in jsonData[0] ||
+                        'label' in jsonData[0]
+                    )
 
-                    // Merge with existing data
-                    const existing = JSON.parse(localStorage.getItem('zt.transactions') || '[]')
-                    const merged = [...existing, ...transactions]
-                    localStorage.setItem('zt.transactions', JSON.stringify(merged))
-                    budgetCount = transactions.length
+                    if (hasBudgetColumns || budgetSheetName.toLowerCase().includes('budget')) {
+                        const transactions = jsonData.map((row, idx) => ({
+                            id: `imported-${Date.now()}-${idx}`,
+                            date: row.Date || row.date || new Date().toISOString().split('T')[0],
+                            label: row.Label || row.label || row.Description || row.description || 'Imported',
+                            amount: Number(row.Amount || row.amount || 0),
+                            type: row.Type || row.type || row.Category || row.category || 'other',
+                        }))
+
+                        // Replace existing data (not merge)
+                        localStorage.setItem('zt.transactions', JSON.stringify(transactions))
+                        budgetCount = transactions.length
+                        console.log('✅ Imported budget:', budgetCount)
+                    }
                 }
 
-                // Import Gym Workouts
-                if (workbook.SheetNames.includes('Gym Workouts')) {
-                    const sheet = workbook.Sheets['Gym Workouts']
+                // Import Gym sheet
+                if (gymSheetName && gymSheetName !== budgetSheetName) {
+                    const sheet = workbook.Sheets[gymSheetName]
                     const jsonData = XLSX.utils.sheet_to_json(sheet)
+                    console.log('🏋️ Gym data rows:', jsonData.length)
 
-                    // Group by date and exercise to rebuild workout structure
-                    const workoutMap = new Map()
+                    // Detect if this is gym data (has Exercise/Reps columns)
+                    const hasGymColumns = jsonData.length > 0 && (
+                        'Exercise' in jsonData[0] ||
+                        'exercise' in jsonData[0] ||
+                        'Reps' in jsonData[0] ||
+                        'reps' in jsonData[0] ||
+                        'Weight' in jsonData[0] ||
+                        'weight' in jsonData[0]
+                    )
 
-                    jsonData.forEach((row) => {
-                        const dateKey = row.Date || new Date().toISOString().split('T')[0]
-                        const exerciseName = row.Exercise || 'Unknown Exercise'
-                        const key = `${dateKey}-${exerciseName}`
+                    if (hasGymColumns || gymSheetName.toLowerCase().includes('gym') || gymSheetName.toLowerCase().includes('workout')) {
+                        // Group by date to rebuild workout structure
+                        const workoutsByDate = new Map()
 
-                        if (!workoutMap.has(key)) {
-                            workoutMap.set(key, {
-                                id: `imported-${Date.now()}-${workoutMap.size}`,
-                                date: dateKey,
-                                dayType: row['Day Type'] || 'custom',
-                                exercises: [{
-                                    name: exerciseName,
-                                    sets: [],
-                                    notes: row.Notes || undefined,
-                                }]
-                            })
-                        }
+                        jsonData.forEach((row) => {
+                            const dateKey = row.Date || row.date || new Date().toISOString().split('T')[0]
+                            const exerciseName = row.Exercise || row.exercise || row.Name || row.name || 'Unknown'
+                            const dayType = row['Day Type'] || row.dayType || row.Type || row.type || 'custom'
 
-                        const workout = workoutMap.get(key)
-                        const exercise = workout.exercises[0]
+                            if (!workoutsByDate.has(dateKey)) {
+                                workoutsByDate.set(dateKey, {
+                                    id: `imported-${Date.now()}-${workoutsByDate.size}`,
+                                    date: dateKey,
+                                    dayType: dayType,
+                                    exercises: []
+                                })
+                            }
 
-                        // Add set if weight and reps exist
-                        const weight = Number(row['Weight (kg)']) || Number(row.Weight) || 0
-                        const reps = Number(row.Reps) || 0
+                            const workout = workoutsByDate.get(dateKey)
 
-                        if (weight > 0 || reps > 0) {
-                            exercise.sets.push({ weight, reps })
-                        }
+                            // Find or create exercise
+                            let exercise = workout.exercises.find(ex => ex.name === exerciseName)
+                            if (!exercise) {
+                                exercise = { name: exerciseName, sets: [], notes: row.Notes || row.notes || '' }
+                                workout.exercises.push(exercise)
+                            }
+
+                            // Add set
+                            const weight = Number(row['Weight (kg)'] || row.Weight || row.weight || 0)
+                            const reps = Number(row.Reps || row.reps || 0)
+                            if (weight > 0 || reps > 0) {
+                                exercise.sets.push({ weight, reps })
+                            }
+                        })
+
+                        const workouts = Array.from(workoutsByDate.values())
+
+                        // Replace existing data
+                        localStorage.setItem('zt.gym.workouts', JSON.stringify(workouts))
+                        gymCount = workouts.length
+                        console.log('✅ Imported workouts:', gymCount)
+                    }
+                }
+
+                // Check if we imported anything
+                if (budgetCount === 0 && gymCount === 0) {
+                    console.warn('⚠️ No data imported. Sheets found:', workbook.SheetNames)
+                    resolve({
+                        success: false,
+                        message: `No compatible data found. Sheets: ${workbook.SheetNames.join(', ')}. Need Budget or Gym data.`
                     })
-
-                    const workouts = Array.from(workoutMap.values())
-
-                    // Merge with existing data
-                    const existing = JSON.parse(localStorage.getItem('zt.gym.workouts') || '[]')
-                    const merged = [...existing, ...workouts]
-                    localStorage.setItem('zt.gym.workouts', JSON.stringify(merged))
-                    gymCount = workouts.length
+                    return
                 }
 
+                console.log('🎉 Import complete:', { budgetCount, gymCount })
                 resolve({
                     success: true,
                     message: `Imported ${budgetCount} budget entries and ${gymCount} workouts`,
@@ -206,12 +262,13 @@ export function importFromExcel(file) {
                     gymCount
                 })
             } catch (error) {
-                console.error('Import failed:', error)
+                console.error('❌ Import parsing failed:', error)
                 reject({ success: false, message: `Import failed: ${error.message}` })
             }
         }
 
         reader.onerror = () => {
+            console.error('❌ File read failed')
             reject({ success: false, message: 'Failed to read file' })
         }
 

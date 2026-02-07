@@ -17,7 +17,7 @@ export const foodDatabase = {
         protein: 3.5,
         calories: 17,
         unit: '1 egg',
-        price: 8, // Estimate
+        price: 12, // Same as whole egg (yolk discarded)
         emoji: '🥚',
         category: 'eggs'
     },

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { MinusCircle, PlusCircle, UtensilsCrossed, History, Trash2, Plus, X, Calendar, Beef, AlertTriangle, Target } from 'lucide-react'
-import { foodDatabase, PROTEIN_GOAL, CALORIE_GOAL, quickAddItems } from '../config/foods'
+import { MinusCircle, PlusCircle, UtensilsCrossed, History, Trash2, Plus, X, Calendar, Beef, AlertTriangle, Target, Pencil, Save } from 'lucide-react'
+import { foodDatabase as initialFoodDatabase, PROTEIN_GOAL, CALORIE_GOAL, quickAddItems } from '../config/foods'
 
 function toISODate(d) {
   const yyyy = d.getFullYear()
@@ -84,6 +84,81 @@ export default function Budget({ onCheatToast }) {
   const [showAddButton, setShowAddButton] = useState(false)
   const [newButtonLabel, setNewButtonLabel] = useState('')
   const [newButtonAmount, setNewButtonAmount] = useState('')
+
+  // Custom Foods Logic
+  const [customFoods, setCustomFoods] = useLocalStorageState('zt.customFoods', {})
+  const foodDatabase = useMemo(() => {
+    return { ...initialFoodDatabase, ...customFoods }
+  }, [customFoods])
+
+  const [isCreatingFood, setIsCreatingFood] = useState(false)
+  const [editingFoodKey, setEditingFoodKey] = useState(null)
+  const [customFoodForm, setCustomFoodForm] = useState({
+    name: '',
+    protein: '',
+    calories: '',
+    price: '',
+    unit: '1 serving',
+    emoji: '🍽️',
+    category: 'custom'
+  })
+
+  function startEditFood(key, food) {
+    setEditingFoodKey(key)
+    setCustomFoodForm({
+      name: food.name,
+      protein: food.protein,
+      calories: food.calories,
+      price: food.price || '',
+      unit: food.unit,
+      emoji: food.emoji,
+      category: food.category || 'custom'
+    })
+    setIsCreatingFood(true)
+  }
+
+  function saveCustomFood() {
+    if (!customFoodForm.name || !customFoodForm.protein) return
+
+    const key = editingFoodKey || `custom_${Date.now()}`
+    const newFood = {
+      ...customFoodForm,
+      protein: Number(customFoodForm.protein),
+      calories: Number(customFoodForm.calories || 0),
+      price: Number(customFoodForm.price || 0),
+      category: customFoodForm.category || 'custom'
+    }
+
+    setCustomFoods(prev => ({ ...prev, [key]: newFood }))
+
+    // Reset
+    setIsCreatingFood(false)
+    setEditingFoodKey(null)
+    setCustomFoodForm({
+      name: '',
+      protein: '',
+      calories: '',
+      price: '',
+      unit: '1 serving',
+      emoji: '🍽️',
+      category: 'custom'
+    })
+  }
+
+  function deleteCustomFood(key) {
+    if (!window.confirm('Delete this food?')) return
+    setCustomFoods(prev => {
+      const next = { ...prev }
+      delete next[key]
+      return next
+    })
+    // If we just deleted what we were editing
+    if (editingFoodKey === key) {
+      setIsCreatingFood(false)
+      setEditingFoodKey(null)
+    }
+  }
+
   const [selectedDate, setSelectedDate] = useState(todayISO) // For logging on past dates
   const cheatAmountRef = useRef(null)
 
@@ -425,73 +500,208 @@ export default function Budget({ onCheatToast }) {
       {/* Food Selection Modal */}
       {showProteinModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-          <div className="max-h-[85vh] w-full max-w-md overflow-hidden rounded-2xl border border-slate-700 bg-slate-900">
-            <div className="flex items-center justify-between border-b border-slate-700 px-4 py-3">
-              <div className="text-lg font-bold text-slate-100">Add Food</div>
-              <button type="button" onClick={() => setShowProteinModal(false)} className="text-slate-400 hover:text-slate-200">
+          <div className="max-h-[85vh] w-full max-w-md overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 flex flex-col">
+            <div className="flex items-center justify-between border-b border-slate-700 px-4 py-3 shrink-0">
+              <div className="text-lg font-bold text-slate-100">
+                {isCreatingFood ? (editingFoodKey ? 'Edit Food' : 'Create Custom Food') : 'Add Food'}
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  if (isCreatingFood) {
+                    setIsCreatingFood(false)
+                    setEditingFoodKey(null)
+                  } else {
+                    setShowProteinModal(false)
+                  }
+                }}
+                className="text-slate-400 hover:text-slate-200"
+              >
                 <X className="h-5 w-5" />
               </button>
             </div>
 
-            {/* Category filter */}
-            <div className="flex gap-2 overflow-x-auto px-4 py-3 border-b border-slate-800">
-              <button
-                type="button"
-                onClick={() => setSelectedFoodCategory('all')}
-                className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${selectedFoodCategory === 'all' ? 'bg-emerald-500 text-slate-900' : 'bg-slate-800 text-slate-300'
-                  }`}
-              >
-                All
-              </button>
-              {foodCategories.map((cat) => (
-                <button
-                  key={cat}
-                  type="button"
-                  onClick={() => setSelectedFoodCategory(cat)}
-                  className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold capitalize ${selectedFoodCategory === cat ? 'bg-emerald-500 text-slate-900' : 'bg-slate-800 text-slate-300'
-                    }`}
-                >
-                  {cat === 'danger' ? '⚠️ Danger' : cat}
-                </button>
-              ))}
-            </div>
+            {isCreatingFood ? (
+              <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                <div className="space-y-3">
+                  <div className="grid grid-cols-4 gap-3">
+                    <div className="col-span-1">
+                      <label className="text-xs font-semibold text-slate-400 block mb-1">Emoji</label>
+                      <input
+                        className="w-full rounded-xl border border-slate-700 bg-slate-800/50 px-3 py-2 text-center text-xl outline-none"
+                        value={customFoodForm.emoji}
+                        onChange={e => setCustomFoodForm({ ...customFoodForm, emoji: e.target.value })}
+                        maxLength={2}
+                      />
+                    </div>
+                    <div className="col-span-3">
+                      <label className="text-xs font-semibold text-slate-400 block mb-1">Food Name *</label>
+                      <input
+                        className="w-full rounded-xl border border-slate-700 bg-slate-800/50 px-3 py-2 text-sm text-slate-100 outline-none placeholder:text-slate-600"
+                        placeholder="e.g. Protein Bar"
+                        value={customFoodForm.name}
+                        onChange={e => setCustomFoodForm({ ...customFoodForm, name: e.target.value })}
+                        autoFocus
+                      />
+                    </div>
+                  </div>
 
-            {/* Food list */}
-            <div className="max-h-[55vh] overflow-y-auto p-4 space-y-2">
-              {Object.entries(foodDatabase)
-                .filter(([, food]) => selectedFoodCategory === 'all' || food.category === selectedFoodCategory)
-                .map(([key, food]) => (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs font-semibold text-slate-400 block mb-1">Protein (g) *</label>
+                      <input
+                        className="w-full rounded-xl border border-slate-700 bg-slate-800/50 px-3 py-2 text-sm text-slate-100 outline-none"
+                        type="number"
+                        placeholder="0"
+                        value={customFoodForm.protein}
+                        onChange={e => setCustomFoodForm({ ...customFoodForm, protein: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold text-slate-400 block mb-1">Calories</label>
+                      <input
+                        className="w-full rounded-xl border border-slate-700 bg-slate-800/50 px-3 py-2 text-sm text-slate-100 outline-none"
+                        type="number"
+                        placeholder="0"
+                        value={customFoodForm.calories}
+                        onChange={e => setCustomFoodForm({ ...customFoodForm, calories: e.target.value })}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs font-semibold text-slate-400 block mb-1">Price (₹)</label>
+                      <input
+                        className="w-full rounded-xl border border-slate-700 bg-slate-800/50 px-3 py-2 text-sm text-slate-100 outline-none"
+                        type="number"
+                        placeholder="0"
+                        value={customFoodForm.price}
+                        onChange={e => setCustomFoodForm({ ...customFoodForm, price: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold text-slate-400 block mb-1">Unit</label>
+                      <input
+                        className="w-full rounded-xl border border-slate-700 bg-slate-800/50 px-3 py-2 text-sm text-slate-100 outline-none"
+                        placeholder="1 serving"
+                        value={customFoodForm.unit}
+                        onChange={e => setCustomFoodForm({ ...customFoodForm, unit: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-4 flex gap-3">
                   <button
-                    key={key}
+                    onClick={saveCustomFood}
+                    disabled={!customFoodForm.name || !customFoodForm.protein}
+                    className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-emerald-500 py-3 text-sm font-bold text-slate-900 hover:bg-emerald-400 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <Save className="h-4 w-4" /> Save Food
+                  </button>
+                  {editingFoodKey && (
+                    <button
+                      onClick={() => deleteCustomFood(editingFoodKey)}
+                      className="rounded-xl border border-rose-500/30 bg-rose-950/20 px-4 text-rose-400 hover:bg-rose-950/40 hover:text-rose-300"
+                    >
+                      <Trash2 className="h-5 w-5" />
+                    </button>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="px-4 pt-3 pb-0">
+                  <button
+                    onClick={() => {
+                      setEditingFoodKey(null)
+                      setCustomFoodForm({
+                        name: '',
+                        protein: '',
+                        calories: '',
+                        price: '',
+                        unit: '1 serving',
+                        emoji: '🍽️',
+                        category: 'custom'
+                      })
+                      setIsCreatingFood(true)
+                    }}
+                    className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-slate-600 bg-slate-800/30 p-2 text-sm font-semibold text-slate-300 hover:bg-slate-800 hover:text-emerald-400 transition-colors"
+                  >
+                    <Plus className="h-4 w-4" /> Create Custom Food
+                  </button>
+                </div>
+
+                {/* Category filter */}
+                <div className="flex gap-2 overflow-x-auto px-4 py-3 border-b border-slate-800 shrink-0">
+                  <button
                     type="button"
-                    onClick={() => logFood(key)}
-                    className={`w-full rounded-xl border px-4 py-3 text-left transition-all hover:scale-[0.99] active:scale-[0.97] ${food.category === 'danger'
-                      ? 'border-rose-500/30 bg-rose-950/20 hover:bg-rose-950/30'
-                      : 'border-slate-700 bg-slate-800/50 hover:bg-slate-800'
+                    onClick={() => setSelectedFoodCategory('all')}
+                    className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${selectedFoodCategory === 'all' ? 'bg-emerald-500 text-slate-900' : 'bg-slate-800 text-slate-300'
                       }`}
                   >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="text-lg">{food.emoji}</span>
-                        <div>
-                          <div className="font-semibold text-slate-100">{food.name}</div>
-                          <div className="text-xs text-slate-400">{food.unit}</div>
+                    All
+                  </button>
+                  {foodCategories.map((cat) => (
+                    <button
+                      key={cat}
+                      type="button"
+                      onClick={() => setSelectedFoodCategory(cat)}
+                      className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold capitalize ${selectedFoodCategory === cat ? 'bg-emerald-500 text-slate-900' : 'bg-slate-800 text-slate-300'
+                        }`}
+                    >
+                      {cat === 'danger' ? '⚠️ Danger' : cat}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Food list */}
+                <div className="flex-1 overflow-y-auto p-4 space-y-2">
+                  {Object.entries(foodDatabase)
+                    .filter(([, food]) => selectedFoodCategory === 'all' || (food.category || 'custom') === selectedFoodCategory)
+                    .map(([key, food]) => (
+                      <div
+                        key={key}
+                        className={`group relative w-full flex items-center justify-between rounded-xl border px-4 py-3 text-left transition-all ${food.category === 'danger'
+                          ? 'border-rose-500/30 bg-rose-950/20'
+                          : 'border-slate-700 bg-slate-800/50 hover:bg-slate-800'
+                          }`}
+                      >
+                        <button
+                          className="absolute inset-0 w-full h-full"
+                          onClick={() => logFood(key)}
+                          aria-label={`Log ${food.name}`}
+                        />
+                        <div className="relative pointer-events-none flex items-center gap-3">
+                          <span className="text-xl">{food.emoji}</span>
+                          <div>
+                            <div className="font-semibold text-slate-100">{food.name}</div>
+                            <div className="text-xs text-slate-400">{food.unit}</div>
+                          </div>
+                        </div>
+
+                        <div className="relative z-10 flex items-center gap-3">
+                          <div className="text-right pointer-events-none">
+                            <div className="text-sm font-bold text-emerald-400">{food.protein}g</div>
+                            <div className="text-[10px] text-slate-500">{food.calories} kcal • ₹{food.price || 0}</div>
+                          </div>
+
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              startEditFood(key, food)
+                            }}
+                            className="rounded-lg p-2 text-slate-500 hover:text-amber-400 hover:bg-slate-700/50 transition-colors"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </button>
                         </div>
                       </div>
-                      <div className="text-right">
-                        <div className="text-sm font-bold text-emerald-400">{food.protein}g</div>
-                        <div className="text-xs text-slate-500">{food.calories} kcal • ₹{food.price || 0}</div>
-                      </div>
-                    </div>
-                    {food.warning && (
-                      <div className="mt-2 flex items-center gap-1 text-[10px] text-rose-400">
-                        <AlertTriangle className="h-3 w-3" />
-                        {food.warning}
-                      </div>
-                    )}
-                  </button>
-                ))}
-            </div>
+                    ))}
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

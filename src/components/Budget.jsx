@@ -195,7 +195,7 @@ export default function Budget({ onCheatToast }) {
 
     const entry = {
       id: `food-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-      date: todayISO,
+      date: selectedDate, // Use selected date
       time: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
       foodKey,
       name: food.name,
@@ -208,6 +208,21 @@ export default function Budget({ onCheatToast }) {
 
     setProteinLog((prev) => [...prev, entry])
     setShowProteinModal(false)
+
+    // Auto-deduct from budget
+    const cost = (food.price || 0) * quantity
+    if (cost > 0) {
+      const newTransaction = {
+        id: Date.now(),
+        amount: -cost,
+        type: 'expense',
+        category: 'Food',
+        description: `${food.emoji} ${food.name} (${quantity > 1 ? quantity + 'x' : ''})`,
+        date: selectedDate,
+      }
+      setTransactions((prev) => [newTransaction, ...prev])
+      setBalance((prev) => Math.max(0, (prev || 0) - cost))
+    }
   }
 
   function deleteProteinEntry(entryId) {
@@ -345,11 +360,16 @@ export default function Budget({ onCheatToast }) {
                   onClick={() => logFood(foodKey)}
                   className="rounded-xl border border-slate-700 bg-slate-900/50 px-2 py-2.5 text-left hover:bg-slate-800 active:scale-[0.98] transition-all"
                 >
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-sm">{food.emoji}</span>
-                    <span className="text-xs font-semibold text-slate-200 truncate">{food.name}</span>
+                  <div className="flex items-center gap-1.5 w-full pr-1">
+                    <span className="text-sm shrink-0">{food.emoji}</span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-semibold text-slate-200 truncate">{food.name}</span>
+                        {food.price > 0 && <span className="text-[10px] font-bold text-amber-500 shrink-0">₹{food.price}</span>}
+                      </div>
+                      <div className="text-[10px] text-emerald-400 font-bold">{food.protein}g protein</div>
+                    </div>
                   </div>
-                  <div className="mt-0.5 text-[10px] text-emerald-400 font-bold">{food.protein}g protein</div>
                 </button>
               )
             })}
@@ -460,7 +480,7 @@ export default function Budget({ onCheatToast }) {
                       </div>
                       <div className="text-right">
                         <div className="text-sm font-bold text-emerald-400">{food.protein}g</div>
-                        <div className="text-xs text-slate-500">{food.calories} kcal</div>
+                        <div className="text-xs text-slate-500">{food.calories} kcal • ₹{food.price || 0}</div>
                       </div>
                     </div>
                     {food.warning && (

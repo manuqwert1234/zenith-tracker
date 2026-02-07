@@ -8,6 +8,7 @@ export const foodDatabase = {
         protein: 6,
         calories: 70,
         unit: '1 egg',
+        price: 12, // 2 for 24
         emoji: '🥚',
         category: 'eggs'
     },
@@ -16,6 +17,7 @@ export const foodDatabase = {
         protein: 3.5,
         calories: 17,
         unit: '1 egg',
+        price: 8, // Estimate
         emoji: '🥚',
         category: 'eggs'
     },
@@ -26,6 +28,7 @@ export const foodDatabase = {
         protein: 25,
         calories: 300,
         unit: '4 pieces',
+        price: 105,
         emoji: '🍗',
         category: 'chicken'
     },
@@ -34,6 +37,7 @@ export const foodDatabase = {
         protein: 28,
         calories: 260,
         unit: '1 quarter leg',
+        price: 130, // Estimate relative to tikka
         emoji: '🍗',
         category: 'chicken'
     },
@@ -42,6 +46,7 @@ export const foodDatabase = {
         protein: 28,
         calories: 280,
         unit: '1 piece',
+        price: 180, // Estimate
         emoji: '🍖',
         category: 'chicken'
     },
@@ -52,6 +57,7 @@ export const foodDatabase = {
         protein: 30,
         calories: 900,
         unit: '1 plate',
+        price: 240, // Estimate
         emoji: '⚠️',
         category: 'danger',
         warning: 'High calorie! Eat meat, skip 50% rice'
@@ -61,6 +67,7 @@ export const foodDatabase = {
         protein: 25,
         calories: 800,
         unit: '1 portion',
+        price: 180, // Estimate
         emoji: '⚠️',
         category: 'danger',
         warning: 'Treat meal only!'
@@ -70,6 +77,7 @@ export const foodDatabase = {
         protein: 18,
         calories: 450,
         unit: '1 dry portion',
+        price: 150, // Estimate
         emoji: '⚠️',
         category: 'danger',
         warning: 'Fried + sugar sauces'
@@ -79,6 +87,7 @@ export const foodDatabase = {
         protein: 0,
         calories: 100,
         unit: '1 tbsp',
+        price: 0, // Usually free condiment?
         emoji: '⚠️',
         category: 'danger',
         warning: 'Pure fat - avoid!'
@@ -90,6 +99,7 @@ export const foodDatabase = {
         protein: 7,
         calories: 90,
         unit: '100g cup',
+        price: 60,
         emoji: '🥛',
         category: 'dairy'
     },
@@ -100,6 +110,7 @@ export const foodDatabase = {
         protein: 3,
         calories: 100,
         unit: '1 piece',
+        price: 15, // Estimate
         emoji: '🫓',
         category: 'carbs'
     },
@@ -108,6 +119,7 @@ export const foodDatabase = {
         protein: 2,
         calories: 40,
         unit: '1 piece',
+        price: 20,
         emoji: '⚪',
         category: 'carbs'
     },
@@ -118,6 +130,7 @@ export const foodDatabase = {
         protein: 1,
         calories: 105,
         unit: '1 medium',
+        price: 10,
         emoji: '🍌',
         category: 'fruits'
     },

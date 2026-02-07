@@ -130,8 +130,17 @@ export const foodDatabase = {
         protein: 1,
         calories: 105,
         unit: '1 medium',
-        price: 10,
+        price: 0,
         emoji: '🍌',
+        category: 'fruits'
+    },
+    cut_fruit: {
+        name: 'Cut Fruit',
+        protein: 1,
+        calories: 50,
+        unit: '1 bowl',
+        price: 40,
+        emoji: '🍉',
         category: 'fruits'
     },
 }
@@ -149,6 +158,7 @@ export const quickAddItems = [
     'grilled_chicken_qtr',
     'egg_white',
     'banana',
+    'cut_fruit',
     'greek_yogurt',
     'idly',
 ]

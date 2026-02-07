@@ -53,12 +53,7 @@ function useLocalStorageState(key, initialValue) {
   return [value, setValue]
 }
 
-const defaultQuickButtons = [
-  { key: 'chicken', label: 'Chicken Tikka', amount: 105 },
-  { key: 'eggs', label: 'Boiled Eggs (2)', amount: 24 },
-  { key: 'idly', label: 'Idly', amount: 20 },
-  { key: 'yogurt', label: 'Greek Yogurt', amount: 60 },
-]
+
 
 export default function Budget({ onCheatToast }) {
   const todayISO = toISODate(startOfToday())
@@ -71,7 +66,7 @@ export default function Budget({ onCheatToast }) {
   const [balance, setBalance] = useLocalStorageState('zt.balance', 6787)
   const [monthEndDate, setMonthEndDate] = useLocalStorageState('zt.monthEndDate', defaultMonthEnd)
   const [transactions, setTransactions] = useLocalStorageState('zt.transactions', [])
-  const [customButtons, setCustomButtons] = useLocalStorageState('zt.customButtons', [])
+
 
   // Protein tracking state
   const [proteinLog, setProteinLog] = useLocalStorageState('zt.proteinLog', [])
@@ -81,9 +76,7 @@ export default function Budget({ onCheatToast }) {
   const [cheatAmount, setCheatAmount] = useState('')
   const [cheatNote, setCheatNote] = useState('')
   const [showHistory, setShowHistory] = useState(false)
-  const [showAddButton, setShowAddButton] = useState(false)
-  const [newButtonLabel, setNewButtonLabel] = useState('')
-  const [newButtonAmount, setNewButtonAmount] = useState('')
+
 
   // Custom Foods Logic
   const [customFoods, setCustomFoods] = useLocalStorageState('zt.customFoods', {})
@@ -188,7 +181,7 @@ export default function Budget({ onCheatToast }) {
 
   const overLimit = todaysSpend > dailyLimit + 0.0001
 
-  const allQuickButtons = [...defaultQuickButtons, ...customButtons]
+
 
   function addTxn(label, amount, meta = {}) {
     const amt = Number(amount)
@@ -221,9 +214,7 @@ export default function Budget({ onCheatToast }) {
     setTransactions((prev) => prev.filter((t) => t.id !== txnId))
   }
 
-  function onQuickClick(item) {
-    addTxn(item.label, item.amount, { type: 'food', priceTag: item.key })
-  }
+
 
   function onLogCheat() {
     const amt = Number(cheatAmount)
@@ -243,25 +234,9 @@ export default function Budget({ onCheatToast }) {
     setCheatNote('')
   }
 
-  function addCustomButton() {
-    const amt = Number(newButtonAmount)
-    if (!newButtonLabel.trim() || !Number.isFinite(amt) || amt <= 0) return
 
-    const newButton = {
-      key: `custom-${Date.now()}`,
-      label: newButtonLabel.trim(),
-      amount: amt,
-    }
 
-    setCustomButtons((prev) => [...prev, newButton])
-    setNewButtonLabel('')
-    setNewButtonAmount('')
-    setShowAddButton(false)
-  }
 
-  function deleteCustomButton(key) {
-    setCustomButtons((prev) => prev.filter((b) => b.key !== key))
-  }
 
   // Protein tracking functions
   function logFood(foodKey, quantity = 1) {
@@ -380,122 +355,7 @@ export default function Budget({ onCheatToast }) {
         )}
       </div>
 
-      {/* PROTOCOL 90 PROTEIN TRACKER */}
-      <div className="rounded-2xl border border-amber-500/30 bg-amber-950/10 p-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="flex items-center gap-2 text-xs font-semibold tracking-wide text-amber-400">
-              <Beef className="h-4 w-4" />
-              PROTEIN TRACKER • PROTOCOL 90
-            </div>
-            <div className="mt-2 flex items-baseline gap-2">
-              <span className="text-3xl font-extrabold text-slate-50">{Math.round(todaysProtein)}g</span>
-              <span className="text-sm text-slate-400">/ {PROTEIN_GOAL}g goal</span>
-            </div>
-          </div>
-          <div className="text-right">
-            <div className="text-xs text-slate-500">Calories</div>
-            <div className={`text-lg font-bold ${todaysCalories > CALORIE_GOAL ? 'text-rose-400' : 'text-slate-300'}`}>
-              {Math.round(todaysCalories)} kcal
-            </div>
-            <div className="text-[10px] text-slate-500">/ {CALORIE_GOAL} limit</div>
-          </div>
-        </div>
 
-        {/* Progress bar */}
-        <div className="mt-3">
-          <div className="h-3 w-full overflow-hidden rounded-full bg-slate-800">
-            <div
-              className={`h-full transition-all duration-300 ${todaysProtein >= PROTEIN_GOAL
-                ? 'bg-emerald-500'
-                : todaysProtein >= PROTEIN_GOAL * 0.7
-                  ? 'bg-amber-500'
-                  : 'bg-amber-700'
-                }`}
-              style={{ width: `${proteinProgress}%` }}
-            />
-          </div>
-          <div className="mt-1 flex justify-between text-[10px] text-slate-500">
-            <span>{Math.round(proteinProgress)}% of daily goal</span>
-            <span>{Math.round(PROTEIN_GOAL - todaysProtein)}g remaining</span>
-          </div>
-        </div>
-
-        {/* Quick add buttons */}
-        <div className="mt-4">
-          <div className="text-xs font-semibold text-slate-400 mb-2">QUICK ADD</div>
-          <div className="grid grid-cols-3 gap-2">
-            {quickAddItems.map((foodKey) => {
-              const food = foodDatabase[foodKey]
-              if (!food) return null
-              return (
-                <button
-                  key={foodKey}
-                  type="button"
-                  onClick={() => logFood(foodKey)}
-                  className="rounded-xl border border-slate-700 bg-slate-900/50 px-2 py-2.5 text-left hover:bg-slate-800 active:scale-[0.98] transition-all"
-                >
-                  <div className="flex items-center gap-1.5 w-full pr-1">
-                    <span className="text-sm shrink-0">{food.emoji}</span>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-semibold text-slate-200 truncate">{food.name}</span>
-                        {food.price > 0 && <span className="text-[10px] font-bold text-amber-500 shrink-0">₹{food.price}</span>}
-                      </div>
-                      <div className="text-[10px] text-emerald-400 font-bold">{food.protein}g protein</div>
-                    </div>
-                  </div>
-                </button>
-              )
-            })}
-          </div>
-        </div>
-
-        {/* View all foods button */}
-        <button
-          type="button"
-          onClick={() => setShowProteinModal(true)}
-          className="mt-3 w-full rounded-xl border border-slate-700 bg-slate-900/40 px-4 py-2.5 text-sm font-semibold text-slate-300 hover:bg-slate-800"
-        >
-          <Plus className="inline h-4 w-4 mr-1" /> Add All Foods
-        </button>
-
-        {/* Today's food log */}
-        {todaysProteinLog.length > 0 && (
-          <div className="mt-4">
-            <div className="text-xs font-semibold text-slate-400 mb-2">TODAY'S LOG ({todaysProteinLog.length})</div>
-            <div className="space-y-2 max-h-48 overflow-y-auto">
-              {todaysProteinLog.map((entry) => (
-                <div
-                  key={entry.id}
-                  className="flex items-center justify-between rounded-lg border border-slate-800 bg-slate-900/30 px-3 py-2"
-                >
-                  <div className="flex items-center gap-2">
-                    <span>{entry.emoji}</span>
-                    <div>
-                      <div className="text-sm font-semibold text-slate-200">{entry.name}</div>
-                      <div className="text-[10px] text-slate-500">{entry.time} • {entry.quantity} {entry.unit}</div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="text-right">
-                      <div className="text-xs font-bold text-emerald-400">{entry.protein}g</div>
-                      <div className="text-[10px] text-slate-500">{entry.calories} kcal</div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => deleteProteinEntry(entry.id)}
-                      className="text-slate-500 hover:text-rose-400"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
 
       {/* Food Selection Modal */}
       {showProteinModal && (
@@ -804,79 +664,43 @@ export default function Budget({ onCheatToast }) {
       </div>
 
       <div className="rounded-2xl border border-slate-800 bg-slate-950/50 p-4">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between pb-2">
           <div className="text-xs font-semibold tracking-wide text-slate-400">QUICK LOG</div>
-          <button
-            type="button"
-            onClick={() => setShowAddButton(!showAddButton)}
-            className="inline-flex items-center gap-1 rounded-lg bg-emerald-500 px-2 py-1 text-xs font-extrabold text-slate-900 hover:bg-emerald-400"
-          >
-            <Plus className="h-3 w-3" />
-            Add Food
-          </button>
         </div>
 
-        {showAddButton && (
-          <div className="mt-3 rounded-xl border border-emerald-500/30 bg-emerald-950/20 p-3">
-            <div className="text-xs font-semibold text-slate-300">Create Custom Button</div>
-            <div className="mt-2 grid grid-cols-3 gap-2">
-              <input
-                placeholder="Name"
-                value={newButtonLabel}
-                onChange={(e) => setNewButtonLabel(e.target.value)}
-                className="col-span-2 rounded-lg border border-slate-800 bg-slate-900/40 px-3 py-2 text-sm text-slate-100 outline-none"
-              />
-              <input
-                placeholder="₹"
-                inputMode="numeric"
-                value={newButtonAmount}
-                onChange={(e) => setNewButtonAmount(e.target.value)}
-                className="rounded-lg border border-slate-800 bg-slate-900/40 px-3 py-2 text-sm text-slate-100 outline-none"
-              />
-            </div>
-            <div className="mt-2 grid grid-cols-2 gap-2">
+        <div className="mt-2 grid grid-cols-2 gap-3">
+          {quickAddItems.map((foodKey) => {
+            const food = foodDatabase[foodKey]
+            if (!food) return null
+            return (
               <button
+                key={foodKey}
                 type="button"
-                onClick={() => setShowAddButton(false)}
-                className="rounded-lg border border-slate-800 bg-slate-950/30 px-3 py-1.5 text-xs font-semibold text-slate-200 hover:bg-slate-900"
+                onClick={() => logFood(foodKey)}
+                className="rounded-xl border border-slate-700 bg-slate-900/40 px-2 py-3 text-left hover:bg-slate-800 active:scale-[0.98] transition-all"
               >
-                Cancel
+                <div className="flex items-center gap-2">
+                  <span className="text-lg shrink-0">{food.emoji}</span>
+                  <div className="min-w-0 flex-1">
+                    <div className="font-bold text-slate-100 leading-tight">{food.name}</div>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className="text-xs font-semibold text-emerald-400">₹{food.price || 0}</span>
+                      <span className="text-[10px] text-slate-500">{food.protein}g pro</span>
+                    </div>
+                  </div>
+                </div>
               </button>
-              <button
-                type="button"
-                onClick={addCustomButton}
-                className="rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-extrabold text-slate-900 hover:bg-emerald-400"
-              >
-                Save Button
-              </button>
-            </div>
-          </div>
-        )}
-
-        <div className="mt-3 grid grid-cols-2 gap-3">
-          {allQuickButtons.map((item) => (
-            <div key={item.key} className="relative">
-              <button
-                type="button"
-                onClick={() => onQuickClick(item)}
-                className="w-full rounded-2xl border border-slate-800 bg-slate-900/40 px-3 py-4 text-left hover:bg-slate-900/70 active:scale-[0.99]"
-              >
-                <div className="text-sm font-bold text-slate-100">{item.label}</div>
-                <div className="mt-1 text-xs font-semibold text-emerald-400">₹{item.amount}</div>
-              </button>
-              {item.key.startsWith('custom-') && (
-                <button
-                  type="button"
-                  onClick={() => deleteCustomButton(item.key)}
-                  className="absolute -right-1 -top-1 rounded-full bg-slate-900 p-1 text-rose-400 hover:bg-slate-800"
-                  aria-label="Delete button"
-                >
-                  <X className="h-3 w-3" />
-                </button>
-              )}
-            </div>
-          ))}
+            )
+          })}
         </div>
+
+        <button
+          type="button"
+          onClick={() => setShowProteinModal(true)}
+          className="mt-3 w-full rounded-xl border border-slate-700 bg-slate-900/30 px-4 py-2.5 text-sm font-semibold text-slate-300 hover:bg-slate-800 hover:text-emerald-400 transition-colors"
+        >
+          <Plus className="inline h-4 w-4 mr-1" /> Add All Foods / Custom
+        </button>
 
         <div className="mt-4 rounded-2xl border border-slate-800 bg-slate-900/30 p-3">
           <div className="text-xs font-semibold tracking-wide text-slate-400">CHEAT MEAL (CUSTOM)</div>

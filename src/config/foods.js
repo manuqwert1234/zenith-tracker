@@ -150,4 +150,5 @@ export const quickAddItems = [
     'egg_white',
     'banana',
     'greek_yogurt',
+    'idly',
 ]

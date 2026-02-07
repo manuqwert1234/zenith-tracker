@@ -664,8 +664,46 @@ export default function Budget({ onCheatToast }) {
       </div>
 
       <div className="rounded-2xl border border-slate-800 bg-slate-950/50 p-4">
-        <div className="flex items-center justify-between pb-2">
-          <div className="text-xs font-semibold tracking-wide text-slate-400">QUICK LOG</div>
+        <div className="space-y-4 pb-2">
+          {/* Header & Stats */}
+          <div className="flex items-start justify-between">
+            <div>
+              <div className="flex items-center gap-2 text-xs font-semibold tracking-wide text-emerald-400">
+                <UtensilsCrossed className="h-4 w-4" />
+                QUICK LOG & TRACKER
+              </div>
+              <div className="mt-2 flex items-baseline gap-1.5">
+                <span className="text-3xl font-extrabold text-slate-50">{Math.round(todaysProtein)}g</span>
+                <span className="text-sm font-semibold text-slate-400">/ {PROTEIN_GOAL}g protein</span>
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="text-xs font-semibold text-slate-500 mb-1">Calories</div>
+              <div className={`text-lg font-bold ${todaysCalories > CALORIE_GOAL ? 'text-rose-400' : 'text-slate-300'}`}>
+                {Math.round(todaysCalories)} kcal
+              </div>
+              <div className="text-[10px] text-slate-500 font-medium">/ {CALORIE_GOAL} limit</div>
+            </div>
+          </div>
+
+          {/* Progress Bar */}
+          <div>
+            <div className="h-2 w-full overflow-hidden rounded-full bg-slate-800">
+              <div
+                className={`h-full transition-all duration-500 ${todaysProtein >= PROTEIN_GOAL
+                  ? 'bg-emerald-500'
+                  : todaysProtein >= PROTEIN_GOAL * 0.7
+                    ? 'bg-amber-500'
+                    : 'bg-amber-700'
+                  }`}
+                style={{ width: `${Math.min((todaysProtein / PROTEIN_GOAL) * 100, 100)}%` }}
+              />
+            </div>
+            <div className="mt-1 flex justify-between text-[10px] font-medium text-slate-500">
+              <span>{Math.round((todaysProtein / PROTEIN_GOAL) * 100)}% done</span>
+              <span>{Math.max(0, Math.round(PROTEIN_GOAL - todaysProtein))}g left</span>
+            </div>
+          </div>
         </div>
 
         <div className="mt-2 grid grid-cols-2 gap-3">

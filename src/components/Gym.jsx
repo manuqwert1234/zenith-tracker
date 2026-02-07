@@ -416,7 +416,7 @@ export default function Gym() {
           className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm font-extrabold text-slate-100 hover:bg-slate-900 active:scale-[0.99]"
         >
           <ArrowLeftRight className="h-4 w-4 text-emerald-400" />
-          I did the wrong workout
+          Adjust Schedule / Wrong Day?
         </button>
 
         {swapOpen ? (

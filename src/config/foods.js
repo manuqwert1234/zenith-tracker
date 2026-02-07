@@ -37,7 +37,7 @@ export const foodDatabase = {
         protein: 28,
         calories: 260,
         unit: '1 quarter leg',
-        price: 130, // Estimate relative to tikka
+        price: 0, // Estimate relative to tikka
         emoji: '🍗',
         category: 'chicken'
     },
@@ -46,7 +46,7 @@ export const foodDatabase = {
         protein: 28,
         calories: 280,
         unit: '1 piece',
-        price: 180, // Estimate
+        price: 0, // Estimate
         emoji: '🍖',
         category: 'chicken'
     },
@@ -57,7 +57,7 @@ export const foodDatabase = {
         protein: 30,
         calories: 900,
         unit: '1 plate',
-        price: 240, // Estimate
+        price: 0, // Estimate
         emoji: '⚠️',
         category: 'danger',
         warning: 'High calorie! Eat meat, skip 50% rice'
@@ -67,7 +67,7 @@ export const foodDatabase = {
         protein: 25,
         calories: 800,
         unit: '1 portion',
-        price: 180, // Estimate
+        price: 0, // Estimate
         emoji: '⚠️',
         category: 'danger',
         warning: 'Treat meal only!'
@@ -77,7 +77,7 @@ export const foodDatabase = {
         protein: 18,
         calories: 450,
         unit: '1 dry portion',
-        price: 150, // Estimate
+        price: 0, // Estimate
         emoji: '⚠️',
         category: 'danger',
         warning: 'Fried + sugar sauces'
@@ -110,7 +110,7 @@ export const foodDatabase = {
         protein: 3,
         calories: 100,
         unit: '1 piece',
-        price: 15, // Estimate
+        price: 0, // Estimate
         emoji: '🫓',
         category: 'carbs'
     },

@@ -722,7 +722,7 @@ export default function Budget({ onCheatToast }) {
                   <div className="min-w-0 flex-1">
                     <div className="font-bold text-slate-100 leading-tight">{food.name}</div>
                     <div className="flex items-center gap-2 mt-0.5">
-                      <span className="text-xs font-semibold text-emerald-400">₹{food.price || 0}</span>
+                      {food.price > 0 && <span className="text-xs font-semibold text-emerald-400">₹{food.price}</span>}
                       <span className="text-[10px] text-slate-500">{food.protein}g pro</span>
                     </div>
                   </div>

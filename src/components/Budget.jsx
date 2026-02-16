@@ -158,28 +158,28 @@ export default function Budget({ onCheatToast }) {
   const daysLeft = useMemo(() => daysRemainingInclusive(monthEndDate), [monthEndDate])
   const dailyLimit = useMemo(() => (daysLeft > 0 ? balance / daysLeft : balance), [balance, daysLeft])
 
-  // Protein tracking computed values
-  const todaysProtein = useMemo(() => {
+  // Protein tracking computed values for SELECTED DATE
+  const viewedProtein = useMemo(() => {
     return (proteinLog || [])
-      .filter((p) => p?.date === todayISO)
+      .filter((p) => p?.date === selectedDate)
       .reduce((sum, p) => sum + (Number(p?.protein) || 0), 0)
-  }, [proteinLog, todayISO])
+  }, [proteinLog, selectedDate])
 
-  const todaysCalories = useMemo(() => {
+  const viewedCalories = useMemo(() => {
     return (proteinLog || [])
-      .filter((p) => p?.date === todayISO)
+      .filter((p) => p?.date === selectedDate)
       .reduce((sum, p) => sum + (Number(p?.calories) || 0), 0)
-  }, [proteinLog, todayISO])
+  }, [proteinLog, selectedDate])
 
-  const proteinProgress = Math.min((todaysProtein / PROTEIN_GOAL) * 100, 100)
+  const proteinProgress = Math.min((viewedProtein / PROTEIN_GOAL) * 100, 100)
 
-  const todaysSpend = useMemo(() => {
+  const viewedSpend = useMemo(() => {
     return (transactions || [])
-      .filter((t) => t?.date === todayISO)
+      .filter((t) => t?.date === selectedDate)
       .reduce((sum, t) => sum + (Number(t?.amount) || 0), 0)
-  }, [transactions, todayISO])
+  }, [transactions, selectedDate])
 
-  const overLimit = todaysSpend > dailyLimit + 0.0001
+  const overLimit = viewedSpend > dailyLimit + 0.0001
 
 
 
@@ -207,6 +207,11 @@ export default function Budget({ onCheatToast }) {
   function deleteTransaction(txnId) {
     const txn = transactions.find((t) => t.id === txnId)
     if (!txn) return
+
+    // If this transaction is linked to a food entry, delete that too
+    if (txn.relatedProteinLogId) {
+      setProteinLog((prev) => prev.filter((p) => p.id !== txn.relatedProteinLogId))
+    }
 
     // Add the amount back to balance
     setBalance((b) => Number(b || 0) + Number(txn.amount))
@@ -243,8 +248,10 @@ export default function Budget({ onCheatToast }) {
     const food = foodDatabase[foodKey]
     if (!food) return
 
+    const proteinLogId = `food-${Date.now()}-${Math.random().toString(36).slice(2)}`
+
     const entry = {
-      id: `food-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      id: proteinLogId,
       date: selectedDate, // Use selected date
       time: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
       foodKey,
@@ -269,6 +276,7 @@ export default function Budget({ onCheatToast }) {
         category: 'Food',
         label: `${food.emoji} ${food.name} (${quantity > 1 ? quantity + 'x' : ''})`,
         date: selectedDate,
+        relatedProteinLogId: proteinLogId,
       }
       setTransactions((prev) => [newTransaction, ...prev])
       setBalance((prev) => Math.max(0, (prev || 0) - cost))
@@ -304,8 +312,9 @@ export default function Budget({ onCheatToast }) {
           <div className="flex items-center gap-2 rounded-xl bg-slate-900/60 px-3 py-2 text-sm">
             <UtensilsCrossed className="h-4 w-4 text-emerald-400" />
             <div className="text-slate-300">
-              Today: <span className={overLimit ? 'font-bold text-rose-400' : 'font-semibold text-slate-100'}>
-                ₹{Math.round(todaysSpend).toLocaleString('en-IN')}
+              {isViewingToday ? 'Today: ' : `${selectedDate}: `}
+              <span className={overLimit ? 'font-bold text-rose-400' : 'font-semibold text-slate-100'}>
+                ₹{Math.round(viewedSpend).toLocaleString('en-IN')}
               </span>
             </div>
           </div>
@@ -313,11 +322,11 @@ export default function Budget({ onCheatToast }) {
 
         {overLimit ? (
           <div className="mt-3 rounded-xl border border-rose-900/60 bg-rose-950/30 px-3 py-2 text-sm text-rose-300">
-            You're over today's limit by ₹{Math.ceil(todaysSpend - dailyLimit).toLocaleString('en-IN')}.
+            You're over the limit by ₹{Math.ceil(viewedSpend - dailyLimit).toLocaleString('en-IN')}.
           </div>
         ) : (
           <div className="mt-3 text-sm text-slate-400">
-            Stay under ₹{Math.floor(dailyLimit).toLocaleString('en-IN')} today to keep the month on track.
+            Stay under ₹{Math.floor(dailyLimit).toLocaleString('en-IN')} {isViewingToday ? 'today' : 'daily'} to keep the month on track.
           </div>
         )}
 
@@ -673,14 +682,14 @@ export default function Budget({ onCheatToast }) {
                 QUICK LOG & TRACKER
               </div>
               <div className="mt-2 flex items-baseline gap-1.5">
-                <span className="text-3xl font-extrabold text-slate-50">{Math.round(todaysProtein)}g</span>
+                <span className="text-3xl font-extrabold text-slate-50">{Math.round(viewedProtein)}g</span>
                 <span className="text-sm font-semibold text-slate-400">/ {PROTEIN_GOAL}g protein</span>
               </div>
             </div>
             <div className="text-right">
               <div className="text-xs font-semibold text-slate-500 mb-1">Calories</div>
-              <div className={`text-lg font-bold ${todaysCalories > CALORIE_GOAL ? 'text-rose-400' : 'text-slate-300'}`}>
-                {Math.round(todaysCalories)} kcal
+              <div className={`text-lg font-bold ${viewedCalories > CALORIE_GOAL ? 'text-rose-400' : 'text-slate-300'}`}>
+                {Math.round(viewedCalories)} kcal
               </div>
               <div className="text-[10px] text-slate-500 font-medium">/ {CALORIE_GOAL} limit</div>
             </div>
@@ -690,18 +699,18 @@ export default function Budget({ onCheatToast }) {
           <div>
             <div className="h-2 w-full overflow-hidden rounded-full bg-slate-800">
               <div
-                className={`h-full transition-all duration-500 ${todaysProtein >= PROTEIN_GOAL
+                className={`h-full transition-all duration-500 ${viewedProtein >= PROTEIN_GOAL
                   ? 'bg-emerald-500'
-                  : todaysProtein >= PROTEIN_GOAL * 0.7
+                  : viewedProtein >= PROTEIN_GOAL * 0.7
                     ? 'bg-amber-500'
                     : 'bg-amber-700'
                   }`}
-                style={{ width: `${Math.min((todaysProtein / PROTEIN_GOAL) * 100, 100)}%` }}
+                style={{ width: `${Math.min((viewedProtein / PROTEIN_GOAL) * 100, 100)}%` }}
               />
             </div>
             <div className="mt-1 flex justify-between text-[10px] font-medium text-slate-500">
-              <span>{Math.round((todaysProtein / PROTEIN_GOAL) * 100)}% done</span>
-              <span>{Math.max(0, Math.round(PROTEIN_GOAL - todaysProtein))}g left</span>
+              <span>{Math.round((viewedProtein / PROTEIN_GOAL) * 100)}% done</span>
+              <span>{Math.max(0, Math.round(PROTEIN_GOAL - viewedProtein))}g left</span>
             </div>
           </div>
         </div>

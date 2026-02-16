@@ -25,3 +25,4 @@ dist-ssr
 
 # Firebase config (IMPORTANT: Keep credentials secret!)
 src/config/firebase.js
+android_backup

@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState, useRef } from 'react'
-import { ArrowLeftRight, CalendarClock, Dumbbell, Camera, TrendingUp, Plus, X, ChevronRight, Image as ImageIcon, History, Trash2 } from 'lucide-react'
+import { useEffect, useMemo, useState, useRef, useCallback } from 'react'
+import { ArrowLeftRight, CalendarClock, Dumbbell, Camera, TrendingUp, Plus, X, Image as ImageIcon, History, Trash2, Timer, Flame, BarChart2, ChevronDown, ChevronUp } from 'lucide-react'
 
 function startOfToday() {
   const now = new Date()
@@ -50,7 +50,185 @@ function useLocalStorageState(key, initialValue) {
   return [value, setValue]
 }
 
-// Workout Templates
+// ─── Rest Timer Component ───────────────────────────────────────────────────
+function RestTimer({ onDismiss }) {
+  const [duration, setDuration] = useState(null) // null = not started
+  const [remaining, setRemaining] = useState(0)
+  const intervalRef = useRef(null)
+
+  function startTimer(secs) {
+    clearInterval(intervalRef.current)
+    setDuration(secs)
+    setRemaining(secs)
+  }
+
+  useEffect(() => {
+    if (remaining <= 0 || duration === null) return
+    intervalRef.current = setInterval(() => {
+      setRemaining(prev => {
+        if (prev <= 1) {
+          clearInterval(intervalRef.current)
+          // Vibrate on finish
+          if (navigator.vibrate) navigator.vibrate([300, 100, 300])
+          // Beep via Web Audio
+          try {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)()
+            const osc = ctx.createOscillator()
+            const gain = ctx.createGain()
+            osc.connect(gain)
+            gain.connect(ctx.destination)
+            osc.frequency.value = 880
+            gain.gain.setValueAtTime(0.3, ctx.currentTime)
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.6)
+            osc.start(ctx.currentTime)
+            osc.stop(ctx.currentTime + 0.6)
+          } catch (_) { }
+          return 0
+        }
+        return prev - 1
+      })
+    }, 1000)
+    return () => clearInterval(intervalRef.current)
+  }, [remaining, duration])
+
+  const progress = duration ? (remaining / duration) : 0
+  const circumference = 2 * Math.PI * 20
+  const strokeDash = circumference * progress
+
+  const mins = Math.floor(remaining / 60)
+  const secs = remaining % 60
+
+  return (
+    <div className="fixed bottom-20 left-1/2 z-40 w-full max-w-md -translate-x-1/2 px-4">
+      <div className="rounded-2xl border border-amber-500/30 bg-slate-950/95 p-4 shadow-2xl backdrop-blur">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <Timer className="h-4 w-4 text-amber-400" />
+            <span className="text-xs font-semibold uppercase tracking-wide text-amber-400">Rest Timer</span>
+          </div>
+          <button type="button" onClick={onDismiss} className="rounded-lg p-1 text-slate-400 hover:bg-slate-800">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        {duration === null ? (
+          <div className="mt-3 flex gap-2">
+            {[60, 90, 120].map(s => (
+              <button
+                key={s}
+                type="button"
+                onClick={() => startTimer(s)}
+                className="flex-1 rounded-xl border border-amber-500/30 bg-amber-950/20 py-2.5 text-sm font-extrabold text-amber-300 hover:bg-amber-950/40"
+              >
+                {s}s
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div className="mt-3 flex items-center gap-4">
+            <svg width="52" height="52" viewBox="0 0 52 52">
+              <circle cx="26" cy="26" r="20" fill="none" stroke="#1e293b" strokeWidth="4" />
+              <circle
+                cx="26" cy="26" r="20" fill="none"
+                stroke={remaining === 0 ? '#22c55e' : '#f59e0b'}
+                strokeWidth="4"
+                strokeDasharray={`${strokeDash} ${circumference}`}
+                strokeLinecap="round"
+                transform="rotate(-90 26 26)"
+                style={{ transition: 'stroke-dasharray 0.9s linear' }}
+              />
+            </svg>
+            <div className="flex-1">
+              <div className={`text-2xl font-extrabold ${remaining === 0 ? 'text-emerald-400' : 'text-slate-50'}`}>
+                {remaining === 0 ? '✓ Done!' : `${mins}:${String(secs).padStart(2, '0')}`}
+              </div>
+              <div className="text-xs text-slate-500">{duration}s rest</div>
+            </div>
+            <div className="flex gap-2">
+              {[60, 90, 120].map(s => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => startTimer(s)}
+                  className={`rounded-lg px-2 py-1 text-xs font-bold ${duration === s && remaining > 0 ? 'bg-amber-500/20 text-amber-300' : 'text-slate-500 hover:text-slate-300'}`}
+                >
+                  {s}s
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ─── Volume Chart Component ─────────────────────────────────────────────────
+function VolumeChart({ workouts }) {
+  const weeks = useMemo(() => {
+    const today = startOfToday()
+    const result = []
+    for (let w = 3; w >= 0; w--) {
+      const weekStart = new Date(today)
+      weekStart.setDate(today.getDate() - today.getDay() - w * 7)
+      const weekEnd = new Date(weekStart)
+      weekEnd.setDate(weekStart.getDate() + 6)
+      const label = weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+      const volume = workouts
+        .filter(wo => {
+          const d = parseISODate(wo.date)
+          return d && d >= weekStart && d <= weekEnd
+        })
+        .reduce((sum, wo) => {
+          return sum + (wo.exercises || []).reduce((s2, ex) => {
+            return s2 + (ex.sets || []).reduce((s3, set) => s3 + (Number(set.weight) || 0) * (Number(set.reps) || 0), 0)
+          }, 0)
+        }, 0)
+      result.push({ label, volume })
+    }
+    return result
+  }, [workouts])
+
+  const maxVol = Math.max(...weeks.map(w => w.volume), 1)
+  const totalThisWeek = weeks[3]?.volume || 0
+  const totalLastWeek = weeks[2]?.volume || 0
+  const change = totalLastWeek > 0 ? Math.round(((totalThisWeek - totalLastWeek) / totalLastWeek) * 100) : null
+
+  return (
+    <div className="mt-4">
+      <div className="flex items-center justify-between">
+        <div className="text-xs font-semibold text-slate-400">4-WEEK VOLUME TREND</div>
+        {change !== null && (
+          <div className={`text-xs font-bold ${change >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+            {change >= 0 ? '↑' : '↓'} {Math.abs(change)}% vs last week
+          </div>
+        )}
+      </div>
+      <div className="mt-3 flex items-end gap-2 h-24">
+        {weeks.map((w, i) => {
+          const heightPct = maxVol > 0 ? Math.max((w.volume / maxVol) * 100, w.volume > 0 ? 8 : 2) : 2
+          const isThisWeek = i === 3
+          return (
+            <div key={i} className="flex flex-1 flex-col items-center gap-1">
+              <div className="text-[9px] font-bold text-slate-500">
+                {w.volume > 0 ? `${(w.volume / 1000).toFixed(1)}k` : '—'}
+              </div>
+              <div className="flex w-full flex-1 items-end">
+                <div
+                  className={`w-full rounded-t-lg transition-all ${isThisWeek ? 'bg-emerald-500' : 'bg-slate-700'}`}
+                  style={{ height: `${heightPct}%` }}
+                />
+              </div>
+              <div className="text-[9px] text-slate-500 text-center leading-tight">{w.label}</div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+// ─── Workout Templates ──────────────────────────────────────────────────────
 const workoutTemplates = {
   ppl: {
     name: 'Push/Pull/Legs',
@@ -158,6 +336,33 @@ const workoutTemplates = {
 const split = workoutTemplates.ppl.split
 const exercises = workoutTemplates.ppl.exercises
 
+// ─── Progressive Overload Helper ────────────────────────────────────────────
+function getOverloadSuggestion(exerciseName, workouts) {
+  // Get the last N sessions where this exercise was logged
+  const sessions = workouts
+    .filter(w => w.exercises?.some(e => e.name === exerciseName))
+    .sort((a, b) => new Date(b.date) - new Date(a.date))
+    .slice(0, 2)
+
+  if (sessions.length < 2) return null
+
+  // Check if both sessions hit >= 8 reps on at least 2 sets
+  const allHitTarget = sessions.every(session => {
+    const ex = session.exercises.find(e => e.name === exerciseName)
+    if (!ex?.sets?.length) return false
+    const goodSets = ex.sets.filter(s => Number(s.reps) >= 8)
+    return goodSets.length >= 2
+  })
+
+  if (!allHitTarget) return null
+
+  // Get current weight from latest session
+  const latestEx = sessions[0].exercises.find(e => e.name === exerciseName)
+  const currentWeight = Math.max(...latestEx.sets.map(s => Number(s.weight) || 0))
+  if (currentWeight <= 0) return null
+
+  return { currentWeight, suggestedWeight: currentWeight + 2.5 }
+}
 
 export default function Gym() {
   const todayISO = toISODate(startOfToday())
@@ -166,6 +371,7 @@ export default function Gym() {
   const [anchorIndex, setAnchorIndex] = useLocalStorageState('zt.gym.anchorIndex', 0)
   const [workouts, setWorkouts] = useLocalStorageState('zt.gym.workouts', [])
   const [photos, setPhotos] = useLocalStorageState('zt.gym.photos', [])
+  const [streak, setStreak] = useLocalStorageState('zt.gym.streak', { lastDate: null, count: 0 })
 
   const [swapOpen, setSwapOpen] = useState(false)
   const [didKey, setDidKey] = useState(null)
@@ -176,6 +382,8 @@ export default function Gym() {
   const [customWorkoutOpen, setCustomWorkoutOpen] = useState(false)
   const [customExerciseName, setCustomExerciseName] = useState('')
   const [historyOpen, setHistoryOpen] = useState(false)
+  const [showRestTimer, setShowRestTimer] = useState(false)
+  const [showVolumeChart, setShowVolumeChart] = useState(false)
   const fileInputRef = useRef(null)
 
   // Get current template data
@@ -234,6 +442,16 @@ export default function Gym() {
     setLogExercise(exercise)
   }
 
+  // ── Update streak ──────────────────────────────────────────────────────────
+  function updateStreak() {
+    const yesterday = toISODate(new Date(startOfToday().getTime() - 86400000))
+    setStreak(prev => {
+      if (prev.lastDate === todayISO) return prev // already counted today
+      if (prev.lastDate === yesterday) return { lastDate: todayISO, count: (prev.count || 0) + 1 }
+      return { lastDate: todayISO, count: 1 }
+    })
+  }
+
   function saveWorkout() {
     if (!logExercise) return
 
@@ -254,9 +472,11 @@ export default function Gym() {
     }
 
     setWorkouts((prev) => [...prev, newWorkout])
+    updateStreak()
     setLogExercise(null)
     setSets([{ weight: '', reps: '' }])
     setNotes('')
+    setShowRestTimer(true) // Show rest timer after saving
   }
 
   function openCustomWorkout() {
@@ -286,10 +506,12 @@ export default function Gym() {
     }
 
     setWorkouts((prev) => [...prev, newWorkout])
+    updateStreak()
     setCustomWorkoutOpen(false)
     setCustomExerciseName('')
     setSets([{ weight: '', reps: '' }])
     setNotes('')
+    setShowRestTimer(true)
   }
 
   function handlePhotoUpload(e) {
@@ -323,12 +545,27 @@ export default function Gym() {
     return { weight: best.weight, reps: best.reps, date: lastWorkout.date }
   }
 
+  // Streak display helpers
+  const streakCount = streak?.count || 0
+  const streakFlame = streakCount >= 7 ? '🔥🔥' : streakCount >= 3 ? '🔥' : '💪'
+
   return (
     <div className="space-y-4">
+      {/* Rest Timer overlay */}
+      {showRestTimer && <RestTimer onDismiss={() => setShowRestTimer(false)} />}
+
       <div className="rounded-2xl border border-slate-800 bg-slate-950/50 p-4">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <div className="text-xs font-semibold tracking-wide text-slate-400">V-TAPER GYM LOG <span className="ml-1 text-emerald-500">v2.0 (Daily Cardio)</span></div>
+            <div className="flex items-center gap-2">
+              <div className="text-xs font-semibold tracking-wide text-slate-400">V-TAPER GYM LOG <span className="ml-1 text-emerald-500">v2.0 (Daily Cardio)</span></div>
+              {/* Streak Badge */}
+              {streakCount > 0 && (
+                <div className="inline-flex items-center gap-1 rounded-full border border-orange-500/30 bg-orange-950/30 px-2 py-0.5 text-[10px] font-bold text-orange-400">
+                  {streakFlame} {streakCount}d streak
+                </div>
+              )}
+            </div>
             <div className="mt-1 text-2xl font-extrabold text-slate-50">Today is {todayWorkout.title}</div>
             <div className="mt-1 text-sm text-slate-300">Focus: <span className="font-semibold text-emerald-400">{todayWorkout.focus}</span></div>
           </div>
@@ -479,6 +716,7 @@ export default function Gym() {
           <div className="mt-3 space-y-2">
             {todayExercises.map((ex) => {
               const last = getLastPerformance(ex.name)
+              const overload = getOverloadSuggestion(ex.name, workouts)
               return (
                 <div key={ex.name} className="rounded-xl border border-slate-800 bg-slate-900/30 p-3">
                   <div className="flex items-start justify-between gap-3">
@@ -488,6 +726,13 @@ export default function Gym() {
                         Target: {ex.target} • {ex.reps} reps
                       </div>
                       {ex.note && <div className="mt-1 text-xs text-emerald-400">{ex.note}</div>}
+                      {/* Progressive Overload suggestion */}
+                      {overload && (
+                        <div className="mt-1.5 inline-flex items-center gap-1 rounded-lg border border-emerald-500/30 bg-emerald-950/30 px-2 py-0.5 text-[10px] font-bold text-emerald-400">
+                          <TrendingUp className="h-3 w-3" />
+                          Ready to level up! Try {overload.suggestedWeight}kg (+2.5kg)
+                        </div>
+                      )}
                       {last && (
                         <div className="mt-1 flex items-center gap-1 text-xs text-slate-500">
                           <TrendingUp className="h-3 w-3" />
@@ -518,6 +763,25 @@ export default function Gym() {
           </button>
         </div>
       )}
+
+      {/* Volume Chart Section */}
+      <div className="rounded-2xl border border-slate-800 bg-slate-950/50 p-4">
+        <button
+          type="button"
+          onClick={() => setShowVolumeChart(v => !v)}
+          className="flex w-full items-center justify-between"
+        >
+          <div className="flex items-center gap-2 text-xs font-semibold tracking-wide text-slate-400">
+            <BarChart2 className="h-4 w-4 text-emerald-400" />
+            WEEKLY VOLUME CHART
+          </div>
+          {showVolumeChart ? <ChevronUp className="h-4 w-4 text-slate-500" /> : <ChevronDown className="h-4 w-4 text-slate-500" />}
+        </button>
+        {showVolumeChart && <VolumeChart workouts={workouts} />}
+        {!showVolumeChart && (
+          <div className="mt-1 text-xs text-slate-600">Tap to see your weekly lifting volume trend</div>
+        )}
+      </div>
 
       <div className="rounded-2xl border border-slate-800 bg-slate-950/50 p-4">
         <div className="flex items-center justify-between">
@@ -661,6 +925,27 @@ export default function Gym() {
                 <X className="h-5 w-5" />
               </button>
             </div>
+
+            {/* Progressive Overload suggestion in modal */}
+            {(() => {
+              const overload = getOverloadSuggestion(logExercise.name, workouts)
+              if (!overload) return null
+              return (
+                <div className="mt-3 flex items-center justify-between rounded-xl border border-emerald-500/30 bg-emerald-950/20 px-3 py-2">
+                  <div>
+                    <div className="text-xs font-bold text-emerald-400">🔥 Progressive Overload Ready!</div>
+                    <div className="text-xs text-slate-400">You've hit target reps 2 sessions in a row</div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSets(sets.map(s => ({ ...s, weight: String(overload.suggestedWeight) })))}
+                    className="rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-extrabold text-slate-900 hover:bg-emerald-400 whitespace-nowrap"
+                  >
+                    Use {overload.suggestedWeight}kg
+                  </button>
+                </div>
+              )
+            })()}
 
             <div className="mt-4 space-y-2">
               {sets.map((set, idx) => (
@@ -832,33 +1117,6 @@ export default function Gym() {
           </div>
         </div>
       )}
-
-      {photoGalleryOpen && photos.length > 0 && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/95 p-4">
-          <div className="relative w-full max-w-lg">
-            <button
-              type="button"
-              onClick={() => setPhotoGalleryOpen(false)}
-              className="absolute right-0 top-0 rounded-lg bg-slate-900 p-2 text-slate-400 hover:bg-slate-800"
-            >
-              <X className="h-5 w-5" />
-            </button>
-            <div className="mt-12 space-y-4">
-              {photos.slice().reverse().map((photo) => (
-                <div key={photo.id} className="overflow-hidden rounded-2xl border border-slate-800">
-                  <img src={photo.dataUrl} alt={`Progress ${photo.date}`} className="w-full" />
-                  <div className="bg-slate-900/80 px-4 py-2 text-xs text-slate-400">
-                    {new Date(photo.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
-
-
-

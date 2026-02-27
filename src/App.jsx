@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Activity, Dumbbell, PiggyBank, Settings, Bell, BellOff, Download, Upload, Cloud, CloudOff, RefreshCw, Apple } from 'lucide-react'
+import { Activity, Dumbbell, PiggyBank, Settings, Bell, BellOff, Download, Upload, Cloud, CloudOff, RefreshCw } from 'lucide-react'
 import Budget from './components/Budget.jsx'
 import Gym from './components/Gym.jsx'
-import Nutrition from './components/Nutrition.jsx'
 import { requestNotificationPermission, notifyCheatMeal, notifyOverspending } from './utils/notifications.js'
 import { exportAllToExcel, importFromExcel } from './utils/exportUtils.js'
 import { initializeAuth, performInitialSync, syncAll, fetchAll, isSyncEnabled, signInWithGoogle } from './services/firebaseSync.js'
@@ -270,8 +269,6 @@ function App() {
 
           {tab === 'gym' ? <Gym /> : null}
 
-          {tab === 'nutrition' ? <Nutrition /> : null}
-
           {tab === 'settings' ? (
             <div className="rounded-2xl border border-slate-800 bg-slate-950/50 p-4">
               <div className="text-xs font-semibold tracking-wide text-slate-400">SETTINGS</div>
@@ -375,12 +372,12 @@ function App() {
         </main>
 
         <nav className="fixed bottom-0 left-1/2 z-20 w-full max-w-md -translate-x-1/2 border-t border-slate-800 bg-slate-950/80 px-2 py-2 backdrop-blur">
-          <div className="grid grid-cols-4 gap-1">
+          <div className="grid grid-cols-3 gap-2">
             <button
               type="button"
               onClick={() => setTab('budget')}
               className={[
-                'flex flex-col items-center justify-center gap-0.5 rounded-xl px-1 py-2 text-xs font-extrabold',
+                'flex items-center justify-center gap-2 rounded-xl px-3 py-3 text-sm font-extrabold',
                 tab === 'budget'
                   ? 'bg-emerald-500 text-slate-900'
                   : 'bg-slate-900/50 text-slate-200 hover:bg-slate-900',
@@ -393,7 +390,7 @@ function App() {
               type="button"
               onClick={() => setTab('gym')}
               className={[
-                'flex flex-col items-center justify-center gap-0.5 rounded-xl px-1 py-2 text-xs font-extrabold',
+                'flex items-center justify-center gap-2 rounded-xl px-3 py-3 text-sm font-extrabold',
                 tab === 'gym'
                   ? 'bg-emerald-500 text-slate-900'
                   : 'bg-slate-900/50 text-slate-200 hover:bg-slate-900',
@@ -404,22 +401,9 @@ function App() {
             </button>
             <button
               type="button"
-              onClick={() => setTab('nutrition')}
-              className={[
-                'flex flex-col items-center justify-center gap-0.5 rounded-xl px-1 py-2 text-xs font-extrabold',
-                tab === 'nutrition'
-                  ? 'bg-emerald-500 text-slate-900'
-                  : 'bg-slate-900/50 text-slate-200 hover:bg-slate-900',
-              ].join(' ')}
-            >
-              <Apple className="h-4 w-4" />
-              Nutrition
-            </button>
-            <button
-              type="button"
               onClick={() => setTab('settings')}
               className={[
-                'flex flex-col items-center justify-center gap-0.5 rounded-xl px-1 py-2 text-xs font-extrabold',
+                'flex items-center justify-center gap-2 rounded-xl px-3 py-3 text-sm font-extrabold',
                 tab === 'settings'
                   ? 'bg-emerald-500 text-slate-900'
                   : 'bg-slate-900/50 text-slate-200 hover:bg-slate-900',

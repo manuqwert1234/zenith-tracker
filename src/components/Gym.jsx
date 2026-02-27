@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, useRef, useCallback } from 'react'
-import { ArrowLeftRight, CalendarClock, Dumbbell, Camera, TrendingUp, Plus, X, Image as ImageIcon, History, Trash2, Timer, Flame, BarChart2, ChevronDown, ChevronUp } from 'lucide-react'
+import { ArrowLeftRight, CalendarClock, Dumbbell, Camera, TrendingUp, Plus, X, Image as ImageIcon, History, Trash2, Timer, Flame, BarChart2, ChevronDown, ChevronUp, Scale } from 'lucide-react'
 
 function startOfToday() {
   const now = new Date()
@@ -372,6 +372,8 @@ export default function Gym() {
   const [workouts, setWorkouts] = useLocalStorageState('zt.gym.workouts', [])
   const [photos, setPhotos] = useLocalStorageState('zt.gym.photos', [])
   const [streak, setStreak] = useLocalStorageState('zt.gym.streak', { lastDate: null, count: 0 })
+  const [weightLog, setWeightLog] = useLocalStorageState('zt.weight.log', [])
+  const [weightInput, setWeightInput] = useState('')
 
   const [swapOpen, setSwapOpen] = useState(false)
   const [didKey, setDidKey] = useState(null)
@@ -781,6 +783,76 @@ export default function Gym() {
         {!showVolumeChart && (
           <div className="mt-1 text-xs text-slate-600">Tap to see your weekly lifting volume trend</div>
         )}
+      </div>
+
+      {/* ── TODAY'S WEIGHT ───────────────────────────────────────────────────── */}
+      <div className="rounded-2xl border border-slate-800 bg-slate-950/50 p-4">
+        <div className="flex items-center gap-2 text-xs font-semibold tracking-wide text-slate-400">
+          <Scale className="h-4 w-4 text-blue-400" />
+          TODAY'S WEIGHT
+        </div>
+
+        {(() => {
+          const sorted = [...weightLog].sort((a, b) => b.date.localeCompare(a.date))
+          const todayEntry = weightLog.find(e => e.date === todayISO)
+          const latest = sorted[0]
+          return (
+            <div className="mt-2 flex items-end justify-between">
+              <div>
+                {todayEntry ? (
+                  <div className="text-2xl font-extrabold text-slate-50">{todayEntry.weight} <span className="text-base font-semibold text-slate-400">kg</span></div>
+                ) : latest ? (
+                  <div>
+                    <div className="text-2xl font-extrabold text-slate-50">{latest.weight} <span className="text-base font-semibold text-slate-400">kg</span></div>
+                    <div className="text-xs text-slate-500">Last logged: {latest.date}</div>
+                  </div>
+                ) : (
+                  <div className="text-sm text-slate-500">No weight logged yet</div>
+                )}
+              </div>
+              <div className="text-right">
+                <div className="text-xs text-slate-500">Goal</div>
+                <div className="text-lg font-extrabold text-emerald-400">72 kg</div>
+                {latest && (
+                  <div className={`text-xs font-bold ${latest.weight > 72 ? 'text-amber-400' : 'text-emerald-400'}`}>
+                    {latest.weight > 72 ? `${(latest.weight - 72).toFixed(1)}kg to go` : '✓ At goal!'}
+                  </div>
+                )}
+              </div>
+            </div>
+          )
+        })()}
+
+        <div className="mt-3 flex gap-2">
+          <input
+            type="number"
+            placeholder="Enter weight (kg)"
+            value={weightInput}
+            onChange={e => setWeightInput(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter') {
+                const val = parseFloat(weightInput)
+                if (!val || val < 20 || val > 300) return
+                setWeightLog(prev => [...prev.filter(e => e.date !== todayISO), { date: todayISO, weight: val }])
+                setWeightInput('')
+              }
+            }}
+            className="flex-1 rounded-xl border border-slate-800 bg-slate-900/50 px-3 py-2 text-sm text-slate-100 outline-none"
+            inputMode="decimal"
+          />
+          <button
+            type="button"
+            onClick={() => {
+              const val = parseFloat(weightInput)
+              if (!val || val < 20 || val > 300) return
+              setWeightLog(prev => [...prev.filter(e => e.date !== todayISO), { date: todayISO, weight: val }])
+              setWeightInput('')
+            }}
+            className="rounded-xl bg-blue-500 px-4 py-2 text-sm font-extrabold text-white hover:bg-blue-400"
+          >
+            Log
+          </button>
+        </div>
       </div>
 
       <div className="rounded-2xl border border-slate-800 bg-slate-950/50 p-4">

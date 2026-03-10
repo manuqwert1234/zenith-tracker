@@ -580,19 +580,32 @@ export default function Gym() {
   }
 
   function addExerciseToCustomTemplate() {
-    if (!newTemplateExName.trim() || !selectedTemplate.startsWith('custom')) return
+    if (!newTemplateExName.trim()) return
     const key = todayWorkout.key
+    const tplKey = selectedTemplate
 
     setCustomTemplates(prev => {
-      if (!prev || !prev[selectedTemplate]) return prev
-      const updated = JSON.parse(JSON.stringify(prev))
-      if (!updated[selectedTemplate].exercises[key]) updated[selectedTemplate].exercises[key] = []
+      const updated = prev ? JSON.parse(JSON.stringify(prev)) : {}
 
-      if (updated[selectedTemplate].exercises[key].length === 1 && updated[selectedTemplate].exercises[key][0].name === 'Add First Exercise') {
-        updated[selectedTemplate].exercises[key] = []
+      // If this template doesn't exist in customTemplates yet, clone it from the hardcoded ones
+      if (!updated[tplKey]) {
+        const source = workoutTemplates[tplKey]
+        if (source) {
+          updated[tplKey] = JSON.parse(JSON.stringify(source))
+        } else {
+          // completely new template
+          updated[tplKey] = { name: 'Custom', split: currentSplit, exercises: {} }
+        }
       }
 
-      updated[selectedTemplate].exercises[key].push({
+      if (!updated[tplKey].exercises[key]) updated[tplKey].exercises[key] = []
+
+      // Remove placeholder
+      if (updated[tplKey].exercises[key].length === 1 && updated[tplKey].exercises[key][0].name === 'Add First Exercise') {
+        updated[tplKey].exercises[key] = []
+      }
+
+      updated[tplKey].exercises[key].push({
         name: newTemplateExName.trim(),
         target: newTemplateExSets.trim() || '3 sets',
         reps: newTemplateExReps.trim() || '8-12 reps'
@@ -605,13 +618,24 @@ export default function Gym() {
   }
 
   function removeExerciseFromCustomTemplate(exerciseNameToRemove) {
-    if (!selectedTemplate.startsWith('custom')) return
     const key = todayWorkout.key
+    const tplKey = selectedTemplate
+
     setCustomTemplates(prev => {
-      if (!prev || !prev[selectedTemplate]) return prev
-      const updated = JSON.parse(JSON.stringify(prev))
-      if (updated[selectedTemplate].exercises[key]) {
-        updated[selectedTemplate].exercises[key] = updated[selectedTemplate].exercises[key].filter(e => e.name !== exerciseNameToRemove)
+      const updated = prev ? JSON.parse(JSON.stringify(prev)) : {}
+
+      // Clone from hardcoded if not yet in customTemplates
+      if (!updated[tplKey]) {
+        const source = workoutTemplates[tplKey]
+        if (source) {
+          updated[tplKey] = JSON.parse(JSON.stringify(source))
+        } else {
+          return prev
+        }
+      }
+
+      if (updated[tplKey].exercises[key]) {
+        updated[tplKey].exercises[key] = updated[tplKey].exercises[key].filter(e => e.name !== exerciseNameToRemove)
       }
       return updated
     })
@@ -878,15 +902,13 @@ export default function Gym() {
                       )}
                     </div>
                     <div className="flex items-center gap-2">
-                      {selectedTemplate.startsWith('custom') && (
-                        <button
-                          type="button"
-                          onClick={() => removeExerciseFromCustomTemplate(ex.name)}
-                          className="rounded-lg border border-red-500/30 px-3 py-1.5 text-xs font-bold text-red-400 hover:bg-red-500/10"
-                        >
-                          Remove
-                        </button>
-                      )}
+                      <button
+                        type="button"
+                        onClick={() => removeExerciseFromCustomTemplate(ex.name)}
+                        className="rounded-lg border border-red-500/30 px-3 py-1.5 text-xs font-bold text-red-400 hover:bg-red-500/10"
+                      >
+                        Remove
+                      </button>
                       <button
                         type="button"
                         onClick={() => openLogExercise(ex)}
@@ -901,43 +923,41 @@ export default function Gym() {
             })}
           </div>
 
-          {selectedTemplate.startsWith('custom') && (
-            <div className="mt-4 rounded-xl border border-dashed border-emerald-500/30 bg-emerald-950/10 p-3">
-              <div className="mb-2 text-xs font-semibold tracking-wide text-emerald-400">ADD TO {todayWorkout.title.toUpperCase()} ROUTINE</div>
-              <div className="flex flex-col gap-2">
+          <div className="mt-4 rounded-xl border border-dashed border-emerald-500/30 bg-emerald-950/10 p-3">
+            <div className="mb-2 text-xs font-semibold tracking-wide text-emerald-400">ADD TO {todayWorkout.title.toUpperCase()} ROUTINE</div>
+            <div className="flex flex-col gap-2">
+              <input
+                type="text"
+                placeholder="Exercise Name (e.g. Bicep Curls)"
+                value={newTemplateExName}
+                onChange={e => setNewTemplateExName(e.target.value)}
+                className="rounded-lg border border-slate-700 bg-slate-900/50 px-3 py-2 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-emerald-500"
+              />
+              <div className="flex gap-2">
                 <input
                   type="text"
-                  placeholder="Exercise Name (e.g. Bicep Curls)"
-                  value={newTemplateExName}
-                  onChange={e => setNewTemplateExName(e.target.value)}
-                  className="rounded-lg border border-slate-700 bg-slate-900/50 px-3 py-2 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-emerald-500"
+                  placeholder="Sets (e.g. 3 sets)"
+                  value={newTemplateExSets}
+                  onChange={e => setNewTemplateExSets(e.target.value)}
+                  className="w-1/2 rounded-lg border border-slate-700 bg-slate-900/50 px-3 py-2 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-emerald-500"
                 />
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    placeholder="Sets (e.g. 3 sets)"
-                    value={newTemplateExSets}
-                    onChange={e => setNewTemplateExSets(e.target.value)}
-                    className="w-1/2 rounded-lg border border-slate-700 bg-slate-900/50 px-3 py-2 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-emerald-500"
-                  />
-                  <input
-                    type="text"
-                    placeholder="Reps (e.g. 8-10 reps)"
-                    value={newTemplateExReps}
-                    onChange={e => setNewTemplateExReps(e.target.value)}
-                    className="w-1/2 rounded-lg border border-slate-700 bg-slate-900/50 px-3 py-2 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-emerald-500"
-                  />
-                </div>
-                <button
-                  type="button"
-                  onClick={addExerciseToCustomTemplate}
-                  className="mt-1 w-full rounded-lg bg-emerald-500/20 py-2 text-xs font-bold tracking-wide text-emerald-400 hover:bg-emerald-500/30"
-                >
-                  + Append to Routine
-                </button>
+                <input
+                  type="text"
+                  placeholder="Reps (e.g. 8-10 reps)"
+                  value={newTemplateExReps}
+                  onChange={e => setNewTemplateExReps(e.target.value)}
+                  className="w-1/2 rounded-lg border border-slate-700 bg-slate-900/50 px-3 py-2 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-emerald-500"
+                />
               </div>
+              <button
+                type="button"
+                onClick={addExerciseToCustomTemplate}
+                className="mt-1 w-full rounded-lg bg-emerald-500/20 py-2 text-xs font-bold tracking-wide text-emerald-400 hover:bg-emerald-500/30"
+              >
+                + Append to Routine
+              </button>
             </div>
-          )}
+          </div>
 
           <button
             type="button"
@@ -1231,243 +1251,247 @@ export default function Gym() {
         )}
       </div>
 
-      {logExercise && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/90 p-4">
-          <div className="w-full max-w-md rounded-2xl border border-slate-800 bg-slate-900 p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-sm font-extrabold text-slate-100">{logExercise.name}</div>
-                <div className="text-xs text-slate-400">Log your sets</div>
+      {
+        logExercise && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/90 p-4">
+            <div className="w-full max-w-md rounded-2xl border border-slate-800 bg-slate-900 p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-sm font-extrabold text-slate-100">{logExercise.name}</div>
+                  <div className="text-xs text-slate-400">Log your sets</div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setLogExercise(null)}
+                  className="rounded-lg p-1 text-slate-400 hover:bg-slate-800"
+                >
+                  <X className="h-5 w-5" />
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={() => setLogExercise(null)}
-                className="rounded-lg p-1 text-slate-400 hover:bg-slate-800"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
 
-            {/* Progressive Overload suggestion in modal */}
-            {(() => {
-              const overload = getOverloadSuggestion(logExercise.name, workouts)
-              if (!overload) return null
-              return (
-                <div className="mt-3 flex items-center justify-between rounded-xl border border-emerald-500/30 bg-emerald-950/20 px-3 py-2">
-                  <div>
-                    <div className="text-xs font-bold text-emerald-400">🔥 Progressive Overload Ready!</div>
-                    <div className="text-xs text-slate-400">You've hit target reps 2 sessions in a row</div>
+              {/* Progressive Overload suggestion in modal */}
+              {(() => {
+                const overload = getOverloadSuggestion(logExercise.name, workouts)
+                if (!overload) return null
+                return (
+                  <div className="mt-3 flex items-center justify-between rounded-xl border border-emerald-500/30 bg-emerald-950/20 px-3 py-2">
+                    <div>
+                      <div className="text-xs font-bold text-emerald-400">🔥 Progressive Overload Ready!</div>
+                      <div className="text-xs text-slate-400">You've hit target reps 2 sessions in a row</div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setSets(sets.map(s => ({ ...s, weight: String(overload.suggestedWeight) })))}
+                      className="rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-extrabold text-slate-900 hover:bg-emerald-400 whitespace-nowrap"
+                    >
+                      Use {overload.suggestedWeight}kg
+                    </button>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setSets(sets.map(s => ({ ...s, weight: String(overload.suggestedWeight) })))}
-                    className="rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-extrabold text-slate-900 hover:bg-emerald-400 whitespace-nowrap"
-                  >
-                    Use {overload.suggestedWeight}kg
-                  </button>
-                </div>
-              )
-            })()}
+                )
+              })()}
 
-            {/* ML Coasting Alert */}
-            {(() => {
-              const coasting = getCoastingAlert(logExercise.name, workouts)
-              if (!coasting) return null
-              return (
-                <div className="mt-3 rounded-xl border border-amber-500/30 bg-amber-950/20 px-3 py-2">
-                  <div className="flex items-center gap-1.5 text-xs font-bold text-amber-500">
-                    <TrendingUp className="h-4 w-4" />
-                    ML Coasting Alert
+              {/* ML Coasting Alert */}
+              {(() => {
+                const coasting = getCoastingAlert(logExercise.name, workouts)
+                if (!coasting) return null
+                return (
+                  <div className="mt-3 rounded-xl border border-amber-500/30 bg-amber-950/20 px-3 py-2">
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-amber-500">
+                      <TrendingUp className="h-4 w-4" />
+                      ML Coasting Alert
+                    </div>
+                    <div className="mt-1 text-xs text-amber-200/70">
+                      You've logged RPE 7 or lower for two weeks. Coasting detected. Increase weight now or the transformation stalls.
+                    </div>
                   </div>
-                  <div className="mt-1 text-xs text-amber-200/70">
-                    You've logged RPE 7 or lower for two weeks. Coasting detected. Increase weight now or the transformation stalls.
+                )
+              })()}
+
+              <div className="mt-4 space-y-2">
+                {sets.map((set, idx) => (
+                  <div key={idx} className="flex gap-1.5 sm:gap-2">
+                    <div className="flex h-10 w-8 sm:w-10 shrink-0 items-center justify-center rounded-lg bg-slate-800 text-xs font-bold text-slate-300">
+                      {idx + 1}
+                    </div>
+                    <input
+                      type="number"
+                      placeholder="Weight (kg)"
+                      value={set.weight}
+                      onChange={(e) => {
+                        const newSets = [...sets]
+                        newSets[idx].weight = e.target.value
+                        setSets(newSets)
+                      }}
+                      className="flex-1 min-w-0 rounded-lg border border-slate-800 bg-slate-950/50 px-2 sm:px-3 py-2 text-sm text-slate-100 outline-none"
+                      inputMode="decimal"
+                    />
+                    <input
+                      type="number"
+                      placeholder="Reps"
+                      value={set.reps}
+                      onChange={(e) => {
+                        const newSets = [...sets]
+                        newSets[idx].reps = e.target.value
+                        setSets(newSets)
+                      }}
+                      className="w-16 sm:w-20 shrink-0 rounded-lg border border-slate-800 bg-slate-950/50 px-2 sm:px-3 py-2 text-sm text-slate-100 outline-none"
+                      inputMode="numeric"
+                    />
+                    <input
+                      type="number"
+                      placeholder="RPE"
+                      value={set.rpe}
+                      onChange={(e) => {
+                        const newSets = [...sets]
+                        newSets[idx].rpe = e.target.value
+                        setSets(newSets)
+                      }}
+                      className="w-14 sm:w-20 shrink-0 rounded-lg border border-slate-800 bg-slate-950/50 px-2 sm:px-3 py-2 text-sm text-slate-100 outline-none"
+                      inputMode="numeric"
+                    />
                   </div>
-                </div>
-              )
-            })()}
-
-            <div className="mt-4 space-y-2">
-              {sets.map((set, idx) => (
-                <div key={idx} className="flex gap-1.5 sm:gap-2">
-                  <div className="flex h-10 w-8 sm:w-10 shrink-0 items-center justify-center rounded-lg bg-slate-800 text-xs font-bold text-slate-300">
-                    {idx + 1}
-                  </div>
-                  <input
-                    type="number"
-                    placeholder="Weight (kg)"
-                    value={set.weight}
-                    onChange={(e) => {
-                      const newSets = [...sets]
-                      newSets[idx].weight = e.target.value
-                      setSets(newSets)
-                    }}
-                    className="flex-1 min-w-0 rounded-lg border border-slate-800 bg-slate-950/50 px-2 sm:px-3 py-2 text-sm text-slate-100 outline-none"
-                    inputMode="decimal"
-                  />
-                  <input
-                    type="number"
-                    placeholder="Reps"
-                    value={set.reps}
-                    onChange={(e) => {
-                      const newSets = [...sets]
-                      newSets[idx].reps = e.target.value
-                      setSets(newSets)
-                    }}
-                    className="w-16 sm:w-20 shrink-0 rounded-lg border border-slate-800 bg-slate-950/50 px-2 sm:px-3 py-2 text-sm text-slate-100 outline-none"
-                    inputMode="numeric"
-                  />
-                  <input
-                    type="number"
-                    placeholder="RPE"
-                    value={set.rpe}
-                    onChange={(e) => {
-                      const newSets = [...sets]
-                      newSets[idx].rpe = e.target.value
-                      setSets(newSets)
-                    }}
-                    className="w-14 sm:w-20 shrink-0 rounded-lg border border-slate-800 bg-slate-950/50 px-2 sm:px-3 py-2 text-sm text-slate-100 outline-none"
-                    inputMode="numeric"
-                  />
-                </div>
-              ))}
-            </div>
-
-            <button
-              type="button"
-              onClick={() => setSets([...sets, { weight: '', reps: '', rpe: '' }])}
-              className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-emerald-400 hover:text-emerald-300"
-            >
-              <Plus className="h-3 w-3" />
-              Add Set
-            </button>
-
-            <textarea
-              placeholder="Notes (optional)"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              className="mt-3 w-full rounded-lg border border-slate-800 bg-slate-950/50 px-3 py-2 text-sm text-slate-100 outline-none"
-              rows={2}
-            />
-
-            <div className="mt-4 grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => setLogExercise(null)}
-                className="rounded-xl border border-slate-800 bg-slate-950/30 px-4 py-2 text-sm font-bold text-slate-200 hover:bg-slate-900/60"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={saveWorkout}
-                className="rounded-xl bg-emerald-500 px-4 py-2 text-sm font-extrabold text-slate-900 hover:bg-emerald-400"
-              >
-                Save Workout
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {customWorkoutOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/90 p-4">
-          <div className="w-full max-w-md rounded-2xl border border-slate-800 bg-slate-900 p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-sm font-extrabold text-slate-100">Custom Workout</div>
-                <div className="text-xs text-slate-400">Log any exercise</div>
+                ))}
               </div>
+
               <button
                 type="button"
-                onClick={() => setCustomWorkoutOpen(false)}
-                className="rounded-lg p-1 text-slate-400 hover:bg-slate-800"
+                onClick={() => setSets([...sets, { weight: '', reps: '', rpe: '' }])}
+                className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-emerald-400 hover:text-emerald-300"
               >
-                <X className="h-5 w-5" />
+                <Plus className="h-3 w-3" />
+                Add Set
               </button>
-            </div>
 
-            <div className="mt-4">
-              <label className="text-xs font-semibold text-slate-400">Exercise Name</label>
-              <input
-                type="text"
-                placeholder="e.g., Bicep Curls, Plank, etc."
-                value={customExerciseName}
-                onChange={(e) => setCustomExerciseName(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-slate-800 bg-slate-950/50 px-3 py-2 text-sm text-slate-100 outline-none"
+              <textarea
+                placeholder="Notes (optional)"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                className="mt-3 w-full rounded-lg border border-slate-800 bg-slate-950/50 px-3 py-2 text-sm text-slate-100 outline-none"
+                rows={2}
               />
-            </div>
 
-            <div className="mt-4 space-y-2">
-              <div className="text-xs font-semibold text-slate-400">Sets</div>
-              {sets.map((set, idx) => (
-                <div key={idx} className="flex gap-2">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-800 text-xs font-bold text-slate-300">
-                    {idx + 1}
-                  </div>
-                  <input
-                    type="number"
-                    placeholder="Weight (kg)"
-                    value={set.weight}
-                    onChange={(e) => {
-                      const newSets = [...sets]
-                      newSets[idx].weight = e.target.value
-                      setSets(newSets)
-                    }}
-                    className="flex-1 rounded-lg border border-slate-800 bg-slate-950/50 px-3 py-2 text-sm text-slate-100 outline-none"
-                    inputMode="decimal"
-                  />
-                  <input
-                    type="number"
-                    placeholder="Reps"
-                    value={set.reps}
-                    onChange={(e) => {
-                      const newSets = [...sets]
-                      newSets[idx].reps = e.target.value
-                      setSets(newSets)
-                    }}
-                    className="w-20 rounded-lg border border-slate-800 bg-slate-950/50 px-3 py-2 text-sm text-slate-100 outline-none"
-                    inputMode="numeric"
-                  />
-                </div>
-              ))}
-            </div>
-
-            <button
-              type="button"
-              onClick={() => setSets([...sets, { weight: '', reps: '' }])}
-              className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-emerald-400 hover:text-emerald-300"
-            >
-              <Plus className="h-3 w-3" />
-              Add Set
-            </button>
-
-            <textarea
-              placeholder="Notes (optional)"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              className="mt-3 w-full rounded-lg border border-slate-800 bg-slate-950/50 px-3 py-2 text-sm text-slate-100 outline-none"
-              rows={2}
-            />
-
-            <div className="mt-4 grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => setCustomWorkoutOpen(false)}
-                className="rounded-xl border border-slate-800 bg-slate-950/30 px-4 py-2 text-sm font-bold text-slate-200 hover:bg-slate-900/60"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={saveCustomWorkout}
-                className="rounded-xl bg-emerald-500 px-4 py-2 text-sm font-extrabold text-slate-900 hover:bg-emerald-400"
-              >
-                Save Workout
-              </button>
+              <div className="mt-4 grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setLogExercise(null)}
+                  className="rounded-xl border border-slate-800 bg-slate-950/30 px-4 py-2 text-sm font-bold text-slate-200 hover:bg-slate-900/60"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={saveWorkout}
+                  className="rounded-xl bg-emerald-500 px-4 py-2 text-sm font-extrabold text-slate-900 hover:bg-emerald-400"
+                >
+                  Save Workout
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
-    </div>
+        )
+      }
+
+      {
+        customWorkoutOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/90 p-4">
+            <div className="w-full max-w-md rounded-2xl border border-slate-800 bg-slate-900 p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-sm font-extrabold text-slate-100">Custom Workout</div>
+                  <div className="text-xs text-slate-400">Log any exercise</div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setCustomWorkoutOpen(false)}
+                  className="rounded-lg p-1 text-slate-400 hover:bg-slate-800"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="mt-4">
+                <label className="text-xs font-semibold text-slate-400">Exercise Name</label>
+                <input
+                  type="text"
+                  placeholder="e.g., Bicep Curls, Plank, etc."
+                  value={customExerciseName}
+                  onChange={(e) => setCustomExerciseName(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-slate-800 bg-slate-950/50 px-3 py-2 text-sm text-slate-100 outline-none"
+                />
+              </div>
+
+              <div className="mt-4 space-y-2">
+                <div className="text-xs font-semibold text-slate-400">Sets</div>
+                {sets.map((set, idx) => (
+                  <div key={idx} className="flex gap-2">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-800 text-xs font-bold text-slate-300">
+                      {idx + 1}
+                    </div>
+                    <input
+                      type="number"
+                      placeholder="Weight (kg)"
+                      value={set.weight}
+                      onChange={(e) => {
+                        const newSets = [...sets]
+                        newSets[idx].weight = e.target.value
+                        setSets(newSets)
+                      }}
+                      className="flex-1 rounded-lg border border-slate-800 bg-slate-950/50 px-3 py-2 text-sm text-slate-100 outline-none"
+                      inputMode="decimal"
+                    />
+                    <input
+                      type="number"
+                      placeholder="Reps"
+                      value={set.reps}
+                      onChange={(e) => {
+                        const newSets = [...sets]
+                        newSets[idx].reps = e.target.value
+                        setSets(newSets)
+                      }}
+                      className="w-20 rounded-lg border border-slate-800 bg-slate-950/50 px-3 py-2 text-sm text-slate-100 outline-none"
+                      inputMode="numeric"
+                    />
+                  </div>
+                ))}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setSets([...sets, { weight: '', reps: '' }])}
+                className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-emerald-400 hover:text-emerald-300"
+              >
+                <Plus className="h-3 w-3" />
+                Add Set
+              </button>
+
+              <textarea
+                placeholder="Notes (optional)"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                className="mt-3 w-full rounded-lg border border-slate-800 bg-slate-950/50 px-3 py-2 text-sm text-slate-100 outline-none"
+                rows={2}
+              />
+
+              <div className="mt-4 grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setCustomWorkoutOpen(false)}
+                  className="rounded-xl border border-slate-800 bg-slate-950/30 px-4 py-2 text-sm font-bold text-slate-200 hover:bg-slate-900/60"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={saveCustomWorkout}
+                  className="rounded-xl bg-emerald-500 px-4 py-2 text-sm font-extrabold text-slate-900 hover:bg-emerald-400"
+                >
+                  Save Workout
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      }
+    </div >
   )
 }

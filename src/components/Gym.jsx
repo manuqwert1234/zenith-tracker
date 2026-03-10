@@ -284,7 +284,7 @@ const workoutTemplates = {
   },
   protocol90: {
     name: 'Protocol 90',
-    description: '5-day high intensity (72kg goal)',
+    description: '5-day high intensity',
     split: [
       { key: 'upper1', title: 'Upper 1 (Heavy Freeweight)', focus: 'Heavy pressing & pulling' },
       { key: 'lower1', title: 'Lower 1 (Heavy Power)', focus: 'Heavy compound leg strength' },
@@ -345,6 +345,24 @@ const workoutTemplates = {
       rest2: [
         { name: 'Active Recovery Walk', target: 'Light Cardio', reps: '30 Mins', note: '🧘 Get moving, but recover.' },
       ],
+    },
+  },
+  custom: {
+    name: 'My Custom Routine',
+    description: 'Build your own custom split from scratch',
+    split: [
+      { key: 'day1', title: 'Day 1', focus: 'Legs/Lower' },
+      { key: 'day2', title: 'Day 2', focus: 'Push/Chest' },
+      { key: 'day3', title: 'Day 3', focus: 'Pull/Back' },
+      { key: 'day4', title: 'Day 4', focus: 'Arms/Accessories' },
+      { key: 'rest', title: 'Rest/Cardio', focus: 'Recovery' },
+    ],
+    exercises: {
+      day1: [],
+      day2: [],
+      day3: [],
+      day4: [],
+      rest: [],
     },
   },
 }

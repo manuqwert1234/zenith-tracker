@@ -333,7 +333,6 @@ export async function performInitialSync() {
         // Get data from localStorage
         const transactions = JSON.parse(localStorage.getItem('zt.transactions') || '[]')
         const workouts = JSON.parse(localStorage.getItem('zt.gym.workouts') || '[]')
-        const photos = JSON.parse(localStorage.getItem('zt.gym.photos') || '[]')
         const weightLog = JSON.parse(localStorage.getItem('zt.weight.log') || '[]')
         const fluidLog = JSON.parse(localStorage.getItem('zt.fluid.log') || '{}')
 
@@ -341,7 +340,6 @@ export async function performInitialSync() {
         const results = await Promise.all([
             syncBudgetTransactions(transactions),
             syncGymWorkouts(workouts),
-            syncProgressPhotos(photos),
             syncWeightLog(weightLog),
             syncFluidLog(fluidLog)
         ])
@@ -352,7 +350,6 @@ export async function performInitialSync() {
             syncedAt: new Date().toISOString(),
             budgetCount: transactions.length,
             workoutCount: workouts.length,
-            photoCount: photos.length,
             weightCount: weightLog.length,
             fluidCount: Object.keys(fluidLog).length
         })
@@ -361,8 +358,7 @@ export async function performInitialSync() {
             success: true,
             message: `Synced ${transactions.length} transactions, ${workouts.length} workouts, ${weightLog.length} weight entries`,
             budgetCount: transactions.length,
-            workoutCount: workouts.length,
-            photoCount: photos.length
+            workoutCount: workouts.length
         }
     } catch (error) {
         console.error('Initial sync error:', error)
@@ -385,14 +381,12 @@ export async function syncAll() {
     try {
         const transactions = JSON.parse(localStorage.getItem('zt.transactions') || '[]')
         const workouts = JSON.parse(localStorage.getItem('zt.gym.workouts') || '[]')
-        const photos = JSON.parse(localStorage.getItem('zt.gym.photos') || '[]')
         const weightLog = JSON.parse(localStorage.getItem('zt.weight.log') || '[]')
         const fluidLog = JSON.parse(localStorage.getItem('zt.fluid.log') || '{}')
 
         await Promise.all([
             syncBudgetTransactions(transactions),
             syncGymWorkouts(workouts),
-            syncProgressPhotos(photos),
             syncWeightLog(weightLog),
             syncFluidLog(fluidLog)
         ])
@@ -417,10 +411,9 @@ export async function fetchAll() {
     }
 
     try {
-        const [budgetResult, workoutsResult, photosResult, weightResult, fluidResult] = await Promise.all([
+        const [budgetResult, workoutsResult, weightResult, fluidResult] = await Promise.all([
             fetchBudgetTransactions(),
             fetchGymWorkouts(),
-            fetchProgressPhotos(),
             fetchWeightLog(),
             fetchFluidLog()
         ])
@@ -431,10 +424,6 @@ export async function fetchAll() {
 
         if (workoutsResult.success && workoutsResult.data.length > 0) {
             localStorage.setItem('zt.gym.workouts', JSON.stringify(workoutsResult.data))
-        }
-
-        if (photosResult.success && photosResult.data.length > 0) {
-            localStorage.setItem('zt.gym.photos', JSON.stringify(photosResult.data))
         }
 
         if (weightResult.success && weightResult.data.length > 0) {
@@ -449,8 +438,7 @@ export async function fetchAll() {
             success: true,
             message: 'Data fetched from cloud',
             budgetCount: budgetResult.data?.length || 0,
-            workoutCount: workoutsResult.data?.length || 0,
-            photoCount: photosResult.data?.length || 0
+            workoutCount: workoutsResult.data?.length || 0
         }
     } catch (error) {
         console.error('Fetch all error:', error)

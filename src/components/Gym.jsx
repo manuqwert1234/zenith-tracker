@@ -1021,46 +1021,6 @@ export default function Gym() {
         })()}
       </div>
 
-      <div className="rounded-2xl border border-slate-800 bg-slate-950/50 p-4">
-        <div className="flex items-center justify-between">
-          <div className="text-xs font-semibold tracking-wide text-slate-400">PROGRESS PHOTOS</div>
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            className="inline-flex items-center gap-1 rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-extrabold text-slate-900 hover:bg-emerald-400"
-          >
-            <Camera className="h-3 w-3" />
-            Add Photo
-          </button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            onChange={handlePhotoUpload}
-            className="hidden"
-          />
-        </div>
-
-        {photos.length > 0 ? (
-          <div className="mt-3 grid grid-cols-3 gap-2">
-            {photos.slice(-6).reverse().map((photo) => (
-              <button
-                key={photo.id}
-                type="button"
-                onClick={() => setPhotoGalleryOpen(true)}
-                className="aspect-square overflow-hidden rounded-xl border border-slate-800"
-              >
-                <img src={photo.dataUrl} alt={`Progress ${photo.date}`} className="h-full w-full object-cover" />
-              </button>
-            ))}
-          </div>
-        ) : (
-          <div className="mt-3 flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-800 bg-slate-900/30 py-8 text-center">
-            <ImageIcon className="h-8 w-8 text-slate-600" />
-            <div className="mt-2 text-xs text-slate-500">No photos yet. Tap "Add Photo" to start tracking!</div>
-          </div>
-        )}
-      </div>
 
       <div className="rounded-2xl border border-slate-800 bg-slate-950/50 p-4">
         <div className="flex items-center justify-between">

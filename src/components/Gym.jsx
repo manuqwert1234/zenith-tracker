@@ -465,6 +465,8 @@ function computeTrendWeight(weightLog, dateISO) {
 export default function Gym() {
   const todayISO = toISODate(startOfToday())
   const [selectedTemplate, setSelectedTemplate] = useLocalStorageState('zt.gym.template', 'ppl')
+  const [targetWeight, setTargetWeight] = useLocalStorageState('zt.targetGoalWeight', 72.0)
+  const [targetGoalDate, setTargetGoalDate] = useLocalStorageState('zt.targetGoalDate', '2026-05-23')
   const [anchorDate, setAnchorDate] = useLocalStorageState('zt.gym.anchorDate', todayISO)
   const [anchorIndex, setAnchorIndex] = useLocalStorageState('zt.gym.anchorIndex', 0)
   const [workouts, setWorkouts] = useLocalStorageState('zt.gym.workouts', [])
@@ -478,6 +480,12 @@ export default function Gym() {
   const [newTemplateExName, setNewTemplateExName] = useState('')
   const [newTemplateExSets, setNewTemplateExSets] = useState('')
   const [newTemplateExReps, setNewTemplateExReps] = useState('')
+
+  const [isEditingGoal, setIsEditingGoal] = useState(false)
+  const [goalInputStr, setGoalInputStr] = useState('')
+
+  const [isEditingDate, setIsEditingDate] = useState(false)
+  const [dateInputStr, setDateInputStr] = useState('')
 
   const [swapOpen, setSwapOpen] = useState(false)
   const [didKey, setDidKey] = useState(null)
@@ -515,16 +523,23 @@ export default function Gym() {
     setDidKey(todayWorkout.key)
   }, [todayWorkout.key])
 
-  const goalDate = useMemo(() => new Date(2026, 4, 23, 0, 0, 0), [])
-  const countdown = useMemo(() => {
+  const { countdown, daysLeftNumber, targetDateFormatted } = useMemo(() => {
+    let d = parseISODate(targetGoalDate)
+    if (!d || isNaN(d.getTime())) {
+      d = new Date('2026-05-23T00:00:00')
+    }
     const now = new Date()
-    const diff = Math.max(0, goalDate.getTime() - now.getTime())
+    const diff = Math.max(0, d.getTime() - now.getTime())
     const totalSeconds = Math.floor(diff / 1000)
     const days = Math.floor(totalSeconds / 86400)
     const hours = Math.floor((totalSeconds % 86400) / 3600)
     const mins = Math.floor((totalSeconds % 3600) / 60)
-    return { days, hours, mins }
-  }, [goalDate])
+    return {
+      countdown: { days, hours, mins },
+      daysLeftNumber: days,
+      targetDateFormatted: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+    }
+  }, [targetGoalDate])
 
   function applySwap() {
     const desiredIndex = currentSplit.findIndex((s) => s.key === didKey)
@@ -771,7 +786,79 @@ export default function Gym() {
             <div className="mt-2 text-lg font-extrabold text-slate-50">
               {countdown.days}d {countdown.hours}h {countdown.mins}m
             </div>
-            <div className="text-sm text-slate-400">Goal date: May 23, 2026 • Target: {localStorage.getItem('zt.targetGoalWeight') ? parseFloat(localStorage.getItem('zt.targetGoalWeight')) : 72.0}kg</div>
+            {isEditingGoal ? (
+              <div className="mt-1 flex items-center gap-2">
+                <input
+                  type="number"
+                  value={goalInputStr}
+                  onChange={e => setGoalInputStr(e.target.value)}
+                  className="w-20 rounded border border-slate-700 bg-slate-900/50 px-2 py-1 text-sm text-slate-100 outline-none focus:border-emerald-500"
+                  placeholder="kg"
+                  autoFocus
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') {
+                      const val = parseFloat(goalInputStr)
+                      if (val > 20 && val < 300) setTargetWeight(val)
+                      setIsEditingGoal(false)
+                    }
+                  }}
+                />
+                <button
+                  onClick={() => {
+                    const val = parseFloat(goalInputStr)
+                    if (val > 20 && val < 300) setTargetWeight(val)
+                    setIsEditingGoal(false)
+                  }}
+                  className="rounded bg-emerald-500 px-2 py-1 text-xs font-bold text-slate-900"
+                >
+                  Save
+                </button>
+              </div>
+            ) : (
+              <div className="text-sm text-slate-400">
+                {isEditingDate ? (
+                  <div className="inline-flex items-center gap-2">
+                    <span className="text-slate-500">Goal date:</span>
+                    <input
+                      type="date"
+                      value={dateInputStr}
+                      onChange={e => setDateInputStr(e.target.value)}
+                      className="rounded border border-slate-700 bg-slate-900/50 px-2 py-1 text-xs text-slate-100 outline-none focus:border-emerald-500"
+                      autoFocus
+                    />
+                    <button
+                      onClick={() => {
+                        if (dateInputStr) setTargetGoalDate(dateInputStr)
+                        setIsEditingDate(false)
+                      }}
+                      className="rounded bg-emerald-500 px-2 py-1 text-xs font-bold text-slate-900"
+                    >
+                      Save
+                    </button>
+                  </div>
+                ) : (
+                  <span
+                    className="cursor-pointer hover:text-slate-300 transition-colors"
+                    onClick={() => {
+                      setDateInputStr(targetGoalDate)
+                      setIsEditingDate(true)
+                    }}
+                  >
+                    Goal date: <span className="text-emerald-400 underline decoration-slate-600 underline-offset-2">{targetDateFormatted}</span>
+                  </span>
+                )}
+                {' • '}
+                <span
+                  className="cursor-pointer hover:text-slate-300 transition-colors"
+                  onClick={() => {
+                    setGoalInputStr(targetWeight.toString())
+                    setIsEditingGoal(true)
+                  }}
+                >
+                  Target: <span className="text-emerald-400 underline decoration-slate-600 underline-offset-2">{targetWeight}kg</span>
+                </span>
+              </div>
+            )}
           </div>
 
           <div className="rounded-2xl border border-slate-800 bg-slate-900/30 p-3">
@@ -781,8 +868,8 @@ export default function Gym() {
             </div>
             {selectedTemplate === 'protocol90' ? (
               <div className="mt-2">
-                <div className="text-lg font-extrabold text-slate-50">{Math.floor(countdown.days / 7)} weeks</div>
-                <div className="text-sm text-slate-400">{Math.floor(countdown.days / 7)} full cycles of Protocol 90</div>
+                <div className="text-lg font-extrabold text-slate-50">{Math.floor(daysLeftNumber / 7)} weeks</div>
+                <div className="text-sm text-slate-400">{Math.floor(daysLeftNumber / 7)} full cycles of Protocol 90</div>
               </div>
             ) : (
               <div className="mt-2 text-sm text-slate-300">
@@ -1015,9 +1102,6 @@ export default function Gym() {
         </div>
 
         {(() => {
-          const targetWeightStr = localStorage.getItem('zt.targetGoalWeight')
-          const targetWeight = targetWeightStr ? parseFloat(targetWeightStr) : 72.0
-
           const sorted = [...weightLog].sort((a, b) => b.date.localeCompare(a.date))
           const todayEntry = weightLog.find(e => e.date === todayISO)
           const latest = sorted[0]

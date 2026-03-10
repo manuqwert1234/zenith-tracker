@@ -204,68 +204,102 @@ export async function fetchGymWorkouts() {
 }
 
 // ============================================
-// PROGRESS PHOTOS SYNC
+// WEIGHT LOG SYNC
 // ============================================
 
-export async function syncProgressPhotos(photos) {
+export async function syncWeightLog(weightEntries) {
     if (!isSyncEnabled()) return { success: false, message: 'Offline or not authenticated' }
 
     try {
         const userId = getUserId()
-        const photosRef = collection(db, 'users', userId, 'photos')
+        const weightRef = collection(db, 'users', userId, 'weight')
 
-        // Upload photos to Storage and save metadata to Firestore
-        const promises = photos.map(async (photo) => {
-            // Upload image to Firebase Storage
-            const storageRef = ref(storage, `users/${userId}/photos/${photo.id}.jpg`)
-            await uploadString(storageRef, photo.dataUrl, 'data_url')
-
-            // Get download URL
-            const downloadURL = await getDownloadURL(storageRef)
-
-            // Save metadata to Firestore
-            const docRef = doc(photosRef, photo.id)
+        const promises = weightEntries.map(async (entry) => {
+            // Use ISO date as ID for weight entries since we only have one per day
+            const docRef = doc(weightRef, entry.date)
             await setDoc(docRef, {
-                id: photo.id,
-                date: photo.date,
-                url: downloadURL,
+                ...entry,
                 synced: true,
                 syncedAt: new Date().toISOString()
             })
         })
 
         await Promise.all(promises)
-        return { success: true, count: photos.length }
+        return { success: true, count: weightEntries.length }
     } catch (error) {
-        console.error('Photos sync error:', error)
+        console.error('Weight sync error:', error)
         return { success: false, error: error.message }
     }
 }
 
-export async function fetchProgressPhotos() {
+export async function fetchWeightLog() {
     if (!isSyncEnabled()) return { success: false, message: 'Offline or not authenticated' }
 
     try {
         const userId = getUserId()
-        const photosRef = collection(db, 'users', userId, 'photos')
-        const q = query(photosRef, orderBy('date', 'desc'))
+        const weightRef = collection(db, 'users', userId, 'weight')
+        const q = query(weightRef, orderBy('date', 'desc'))
         const snapshot = await getDocs(q)
 
-        const photos = []
+        const weightLog = []
         snapshot.forEach((doc) => {
-            const data = doc.data()
-            // Convert Firebase Storage URL back to local format
-            photos.push({
-                id: data.id,
-                date: data.date,
-                dataUrl: data.url, // Use the download URL
-                synced: true
+            weightLog.push(doc.data())
+        })
+
+        return { success: true, data: weightLog }
+    } catch (error) {
+        console.error('Fetch weight error:', error)
+        return { success: false, error: error.message }
+    }
+}
+
+// ============================================
+// FLUID INTAKE SYNC
+// ============================================
+
+export async function syncFluidLog(fluidLog) {
+    if (!isSyncEnabled()) return { success: false, message: 'Offline or not authenticated' }
+
+    try {
+        const userId = getUserId()
+        const fluidRef = collection(db, 'users', userId, 'fluid')
+
+        // fluidLog is a flat object { [isoDate]: liters }
+        const promises = Object.entries(fluidLog).map(async ([date, volume]) => {
+            const docRef = doc(fluidRef, date)
+            await setDoc(docRef, {
+                date,
+                volume,
+                synced: true,
+                syncedAt: new Date().toISOString()
             })
         })
 
-        return { success: true, data: photos }
+        await Promise.all(promises)
+        return { success: true, count: Object.keys(fluidLog).length }
     } catch (error) {
-        console.error('Fetch photos error:', error)
+        console.error('Fluid sync error:', error)
+        return { success: false, error: error.message }
+    }
+}
+
+export async function fetchFluidLog() {
+    if (!isSyncEnabled()) return { success: false, message: 'Offline or not authenticated' }
+
+    try {
+        const userId = getUserId()
+        const fluidRef = collection(db, 'users', userId, 'fluid')
+        const snapshot = await getDocs(fluidRef)
+
+        const fluidLog = {}
+        snapshot.forEach((doc) => {
+            const data = doc.data()
+            fluidLog[data.date] = data.volume
+        })
+
+        return { success: true, data: fluidLog }
+    } catch (error) {
+        console.error('Fetch fluid error:', error)
         return { success: false, error: error.message }
     }
 }
@@ -300,12 +334,16 @@ export async function performInitialSync() {
         const transactions = JSON.parse(localStorage.getItem('zt.transactions') || '[]')
         const workouts = JSON.parse(localStorage.getItem('zt.gym.workouts') || '[]')
         const photos = JSON.parse(localStorage.getItem('zt.gym.photos') || '[]')
+        const weightLog = JSON.parse(localStorage.getItem('zt.weight.log') || '[]')
+        const fluidLog = JSON.parse(localStorage.getItem('zt.fluid.log') || '{}')
 
         // Sync all data
         const results = await Promise.all([
             syncBudgetTransactions(transactions),
             syncGymWorkouts(workouts),
-            syncProgressPhotos(photos)
+            syncProgressPhotos(photos),
+            syncWeightLog(weightLog),
+            syncFluidLog(fluidLog)
         ])
 
         // Mark initial sync as done
@@ -314,12 +352,14 @@ export async function performInitialSync() {
             syncedAt: new Date().toISOString(),
             budgetCount: transactions.length,
             workoutCount: workouts.length,
-            photoCount: photos.length
+            photoCount: photos.length,
+            weightCount: weightLog.length,
+            fluidCount: Object.keys(fluidLog).length
         })
 
         return {
             success: true,
-            message: `Synced ${transactions.length} transactions, ${workouts.length} workouts, ${photos.length} photos`,
+            message: `Synced ${transactions.length} transactions, ${workouts.length} workouts, ${weightLog.length} weight entries`,
             budgetCount: transactions.length,
             workoutCount: workouts.length,
             photoCount: photos.length
@@ -346,16 +386,20 @@ export async function syncAll() {
         const transactions = JSON.parse(localStorage.getItem('zt.transactions') || '[]')
         const workouts = JSON.parse(localStorage.getItem('zt.gym.workouts') || '[]')
         const photos = JSON.parse(localStorage.getItem('zt.gym.photos') || '[]')
+        const weightLog = JSON.parse(localStorage.getItem('zt.weight.log') || '[]')
+        const fluidLog = JSON.parse(localStorage.getItem('zt.fluid.log') || '{}')
 
         await Promise.all([
             syncBudgetTransactions(transactions),
             syncGymWorkouts(workouts),
-            syncProgressPhotos(photos)
+            syncProgressPhotos(photos),
+            syncWeightLog(weightLog),
+            syncFluidLog(fluidLog)
         ])
 
         return {
             success: true,
-            message: `Synced ${transactions.length} transactions, ${workouts.length} workouts, ${photos.length} photos`
+            message: 'All features synced to cloud'
         }
     } catch (error) {
         console.error('Sync all error:', error)
@@ -373,10 +417,12 @@ export async function fetchAll() {
     }
 
     try {
-        const [budgetResult, workoutsResult, photosResult] = await Promise.all([
+        const [budgetResult, workoutsResult, photosResult, weightResult, fluidResult] = await Promise.all([
             fetchBudgetTransactions(),
             fetchGymWorkouts(),
-            fetchProgressPhotos()
+            fetchProgressPhotos(),
+            fetchWeightLog(),
+            fetchFluidLog()
         ])
 
         if (budgetResult.success && budgetResult.data.length > 0) {
@@ -389,6 +435,14 @@ export async function fetchAll() {
 
         if (photosResult.success && photosResult.data.length > 0) {
             localStorage.setItem('zt.gym.photos', JSON.stringify(photosResult.data))
+        }
+
+        if (weightResult.success && weightResult.data.length > 0) {
+            localStorage.setItem('zt.weight.log', JSON.stringify(weightResult.data))
+        }
+
+        if (fluidResult.success && Object.keys(fluidResult.data).length > 0) {
+            localStorage.setItem('zt.fluid.log', JSON.stringify(fluidResult.data))
         }
 
         return {

@@ -874,6 +874,9 @@ export default function Gym() {
         </div>
 
         {(() => {
+          const targetWeightStr = localStorage.getItem('zt.targetGoalWeight')
+          const targetWeight = targetWeightStr ? parseFloat(targetWeightStr) : 72.0
+
           const sorted = [...weightLog].sort((a, b) => b.date.localeCompare(a.date))
           const todayEntry = weightLog.find(e => e.date === todayISO)
           const latest = sorted[0]
@@ -907,10 +910,10 @@ export default function Gym() {
               </div>
               <div className="text-right">
                 <div className="text-xs text-slate-500">Goal</div>
-                <div className="text-lg font-extrabold text-emerald-400">72 kg</div>
+                <div className="text-lg font-extrabold text-emerald-400">{targetWeight} kg</div>
                 {latest && (
-                  <div className={`text-xs font-bold ${latest.weight > 72 ? 'text-amber-400' : 'text-emerald-400'}`}>
-                    {latest.weight > 72 ? `${(latest.weight - 72).toFixed(1)}kg to go` : '✓ At goal!'}
+                  <div className={`text-xs font-bold ${latest.weight > targetWeight ? 'text-amber-400' : 'text-emerald-400'}`}>
+                    {latest.weight > targetWeight ? `${(latest.weight - targetWeight).toFixed(1)}kg to go` : '✓ At goal!'}
                   </div>
                 )}
               </div>

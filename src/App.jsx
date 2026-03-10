@@ -136,11 +136,131 @@ function Toast({ message, onClose }) {
   )
 }
 
+function Onboarding({ onComplete }) {
+  const [step, setStep] = useState(1)
+  const [weight, setWeight] = useState(72.0)
+  const [foodName, setFoodName] = useState('')
+  const [foodCal, setFoodCal] = useState('')
+  const [foodProtein, setFoodProtein] = useState('')
+
+  const handleNext = () => setStep(2)
+  const handleFinish = () => {
+    onComplete(
+      parseFloat(weight) || 72.0,
+      {
+        name: foodName || 'Example Food',
+        calories: parseInt(foodCal) || 0,
+        protein: parseInt(foodProtein) || 0
+      }
+    )
+  }
+
+  return (
+    <div className="flex min-h-screen flex-col items-center justify-center bg-slate-950 p-6 text-slate-100">
+      <div className="w-full max-w-md rounded-3xl border border-emerald-900/50 bg-slate-900/50 p-8 shadow-2xl backdrop-blur-xl">
+        <div className="mb-8 text-center">
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-500/20 text-emerald-400">
+            <Activity className="h-8 w-8" />
+          </div>
+          <h1 className="text-2xl font-black tracking-tight text-white">Welcome to Zenith</h1>
+          <p className="mt-2 text-sm text-slate-400">Let's set up your baseline.</p>
+        </div>
+
+        {step === 1 && (
+          <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <h2 className="mb-4 text-sm font-bold tracking-wide text-emerald-400">STEP 1 OF 2</h2>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-400">Target Body Weight (kg)</label>
+                <input
+                  type="number"
+                  value={weight}
+                  onChange={(e) => setWeight(e.target.value)}
+                  className="mt-1 flex w-full items-center justify-center rounded-xl border border-slate-700 bg-slate-800/50 px-4 py-4 text-center text-4xl font-black text-white outline-none focus:border-emerald-500"
+                  inputMode="decimal"
+                />
+              </div>
+            </div>
+            <button
+              onClick={handleNext}
+              className="mt-8 w-full rounded-xl bg-emerald-500 py-4 text-sm font-black tracking-wide text-slate-950 hover:bg-emerald-400 active:scale-[0.98]"
+            >
+              Continue
+            </button>
+          </div>
+        )}
+
+        {step === 2 && (
+          <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <h2 className="mb-4 text-sm font-bold tracking-wide text-emerald-400">STEP 2 OF 2</h2>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-400">Pin a Quick-Add Food (Optional)</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Protein Shake"
+                  value={foodName}
+                  onChange={(e) => setFoodName(e.target.value)}
+                  className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-800/50 px-4 py-3 text-sm text-white outline-none focus:border-emerald-500"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-400">Calories</label>
+                  <input
+                    type="number"
+                    placeholder="kcal"
+                    value={foodCal}
+                    onChange={(e) => setFoodCal(e.target.value)}
+                    className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-800/50 px-4 py-3 text-sm text-white outline-none focus:border-emerald-500"
+                    inputMode="numeric"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-400">Protein (g)</label>
+                  <input
+                    type="number"
+                    placeholder="g"
+                    value={foodProtein}
+                    onChange={(e) => setFoodProtein(e.target.value)}
+                    className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-800/50 px-4 py-3 text-sm text-white outline-none focus:border-emerald-500"
+                    inputMode="numeric"
+                  />
+                </div>
+              </div>
+            </div>
+            <button
+              onClick={handleFinish}
+              className="mt-8 flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 py-4 text-sm font-black tracking-wide text-slate-950 hover:bg-emerald-400 active:scale-[0.98]"
+            >
+              Enter Zenith <Dumbbell className="h-4 w-4" />
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function App() {
   const [tab, setTab] = useLocalStorageState('zt.tab', 'budget')
   const [toast, setToast] = useState('')
   const [syncStatus, setSyncStatus] = useState('idle') // idle, syncing, synced, error
   const [isOnline, setIsOnline] = useState(navigator.onLine)
+  const [onboardingComplete, setOnboardingComplete] = useLocalStorageState('zt.onboardingComplete', false)
+  const [targetWeight, setTargetWeight] = useLocalStorageState('zt.targetGoalWeight', 72.0)
+  const [pinnedFood, setPinnedFood] = useLocalStorageState('zt.pinnedFood', { name: '', calories: 0, protein: 0 })
+
+  // Protect existing users from seeing the onboarding screen
+  useEffect(() => {
+    if (!onboardingComplete) {
+      const hasWorkouts = JSON.parse(localStorage.getItem('zt.gym.workouts') || '[]').length > 0
+      const hasTransactions = JSON.parse(localStorage.getItem('zt.transactions') || '[]').length > 0
+      if (hasWorkouts || hasTransactions) {
+        setOnboardingComplete(true)
+      }
+    }
+  }, [onboardingComplete, setOnboardingComplete])
 
   // Initialize Firebase on mount
   useEffect(() => {
@@ -238,6 +358,18 @@ function App() {
   const daysLeft = useMemo(() => daysLeftInCurrentMonth(), [])
   const month = useMemo(() => monthLabel(), [])
   const todayISO = useMemo(() => toISODate(startOfToday()), [])
+
+  if (!onboardingComplete) {
+    return (
+      <Onboarding
+        onComplete={(weight, food) => {
+          setTargetWeight(weight)
+          setPinnedFood(food)
+          setOnboardingComplete(true)
+        }}
+      />
+    )
+  }
 
   return (
     <div className="min-h-full bg-slate-900 text-slate-100">

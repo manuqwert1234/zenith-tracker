@@ -986,20 +986,34 @@ export default function Gym() {
                 />
               </div>
 
-              <div className="mt-4 grid grid-cols-2 gap-2">
+              <div className="mt-4 grid grid-cols-4 gap-2">
                 <button
                   type="button"
                   onClick={() => setFluidLog({ ...fluidLog, [todayISO]: Math.max(0, todayFluid - 0.5) })}
-                  className="rounded-xl border border-slate-800 bg-slate-900/50 px-3 py-2 text-sm font-bold text-slate-300 hover:bg-slate-800"
+                  className="rounded-xl border border-slate-800 bg-slate-900/50 px-2 py-2 text-xs font-bold text-slate-300 hover:bg-slate-800"
                 >
-                  - 0.5L
+                  -0.5L
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFluidLog({ ...fluidLog, [todayISO]: Math.max(0, todayFluid - 0.25) })}
+                  className="rounded-xl border border-slate-800 bg-slate-900/50 px-2 py-2 text-xs font-bold text-slate-300 hover:bg-slate-800"
+                >
+                  -0.25L
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFluidLog({ ...fluidLog, [todayISO]: todayFluid + 0.25 })}
+                  className="rounded-xl bg-cyan-500/20 px-2 py-2 text-xs font-extrabold text-cyan-400 hover:bg-cyan-500/30"
+                >
+                  +0.25L
                 </button>
                 <button
                   type="button"
                   onClick={() => setFluidLog({ ...fluidLog, [todayISO]: todayFluid + 0.5 })}
-                  className="rounded-xl bg-cyan-500/20 px-3 py-2 text-sm font-extrabold text-cyan-400 hover:bg-cyan-500/30"
+                  className="rounded-xl bg-cyan-500/20 px-2 py-2 text-xs font-extrabold text-cyan-400 hover:bg-cyan-500/30"
                 >
-                  + 0.5L
+                  +0.5L
                 </button>
               </div>
             </div>

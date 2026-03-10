@@ -245,7 +245,103 @@ function VolumeChart({ workouts }) {
   )
 }
 
+// ─── Consistency Heatmap Component ──────────────────────────────────────────
+function ConsistencyHeatmap({ workouts, fluidLog }) {
+  const [weeks, setWeeks] = useState([])
+
+  useEffect(() => {
+    const today = startOfToday()
+    const daysToShow = 90
+    const generatedWeeks = []
+
+    // Calculate start date (90 days ago, aligned to the start of that week - Sunday)
+    const startDate = new Date(today)
+    startDate.setDate(today.getDate() - daysToShow + 1)
+    const startDayOfWeek = startDate.getDay()
+    startDate.setDate(startDate.getDate() - startDayOfWeek) // Go back to Sunday
+
+    let currentDate = new Date(startDate)
+    let currentWeek = []
+
+    // Build the grid until we pass today
+    while (currentDate <= today || currentWeek.length > 0) {
+      if (currentWeek.length === 7) {
+        generatedWeeks.push(currentWeek)
+        currentWeek = []
+      }
+
+      const isoDate = toISODate(currentDate)
+      const isFuture = currentDate > today
+
+      let status = 'future' // default empty slate
+
+      if (!isFuture) {
+        const hasWorkout = workouts.some(wo => wo.date.startsWith(isoDate))
+        const hasWater = fluidLog[isoDate] >= 3.0
+
+        if (hasWorkout) {
+          status = 'gym' // Green
+        } else if (hasWater) {
+          status = 'water' // Blue
+        } else {
+          status = 'miss' // Red
+        }
+      }
+
+      currentWeek.push({
+        date: isoDate,
+        status: status,
+        isFuture,
+        dayOfMonth: currentDate.getDate()
+      })
+
+      currentDate.setDate(currentDate.getDate() + 1)
+    }
+
+    setWeeks(generatedWeeks)
+  }, [workouts, fluidLog])
+
+  const getColorClass = (status) => {
+    switch (status) {
+      case 'gym': return 'bg-emerald-500 border-emerald-600 shadow-[0_0_8px_rgba(16,185,129,0.4)] z-10'
+      case 'water': return 'bg-cyan-500 border-cyan-600 shadow-[0_0_5px_rgba(6,182,212,0.3)] z-10'
+      case 'miss': return 'bg-red-950/40 border-slate-800'
+      case 'future': return 'bg-slate-900/30 border-slate-800/50 opacity-50'
+      default: return 'bg-slate-900 border-slate-800'
+    }
+  }
+
+  return (
+    <div className="mt-4 overflow-hidden rounded-2xl border border-slate-800 bg-slate-950/50 p-4">
+      <div className="mb-3 flex items-center justify-between">
+        <div className="text-xs font-semibold tracking-wide text-slate-400">90-DAY CONSISTENCY</div>
+        <div className="flex items-center gap-3 text-[10px] font-bold text-slate-500">
+          <div className="flex items-center gap-1"><div className="h-2 w-2 rounded bg-emerald-500"></div> Gym</div>
+          <div className="flex items-center gap-1"><div className="h-2 w-2 rounded bg-cyan-500"></div> Water</div>
+        </div>
+      </div>
+
+      <div className="flex w-full overflow-x-auto pb-2 scrollbar-hide">
+        <div className="flex gap-1" style={{ minWidth: 'min-content' }}>
+          {weeks.map((week, wIdx) => (
+            <div key={wIdx} className="flex flex-col gap-1">
+              {week.map((day, dIdx) => (
+                <div
+                  key={`${wIdx}-${dIdx}`}
+                  title={`${day.date}: ${day.status}`}
+                  className={`h-3 w-3 rounded-sm border transition-all duration-300 ${getColorClass(day.status)}`}
+                />
+              ))}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Workout Templates ──────────────────────────────────────────────────────
+
 const workoutTemplates = {
   ppl: {
     name: 'Push/Pull/Legs',
@@ -695,6 +791,9 @@ export default function Gym() {
             )}
           </div>
         </div>
+
+        {/* Consistency Heatmap */}
+        <ConsistencyHeatmap workouts={workouts} fluidLog={fluidLog} />
 
         {/* Protocol 90 Weekly Schedule */}
         {selectedTemplate === 'protocol90' && (

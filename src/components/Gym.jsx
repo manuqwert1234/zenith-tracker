@@ -455,7 +455,11 @@ export default function Gym() {
   const [weightLog, setWeightLog] = useLocalStorageState('zt.weight.log', [])
   const [fluidLog, setFluidLog] = useLocalStorageState('zt.fluid.log', {})
   const [weightInput, setWeightInput] = useState('')
-  const [customTemplates] = useLocalStorageState('zt.gym.customTemplates', null)
+  const [customTemplates, setCustomTemplates] = useLocalStorageState('zt.gym.customTemplates', null)
+
+  const [newTemplateExName, setNewTemplateExName] = useState('')
+  const [newTemplateExSets, setNewTemplateExSets] = useState('')
+  const [newTemplateExReps, setNewTemplateExReps] = useState('')
 
   const [swapOpen, setSwapOpen] = useState(false)
   const [didKey, setDidKey] = useState(null)
@@ -575,6 +579,44 @@ export default function Gym() {
     setCustomWorkoutOpen(true)
   }
 
+  function addExerciseToCustomTemplate() {
+    if (!newTemplateExName.trim() || !selectedTemplate.startsWith('custom')) return
+    const key = todayWorkout.key
+
+    setCustomTemplates(prev => {
+      if (!prev || !prev[selectedTemplate]) return prev
+      const updated = JSON.parse(JSON.stringify(prev))
+      if (!updated[selectedTemplate].exercises[key]) updated[selectedTemplate].exercises[key] = []
+
+      if (updated[selectedTemplate].exercises[key].length === 1 && updated[selectedTemplate].exercises[key][0].name === 'Add First Exercise') {
+        updated[selectedTemplate].exercises[key] = []
+      }
+
+      updated[selectedTemplate].exercises[key].push({
+        name: newTemplateExName.trim(),
+        target: newTemplateExSets.trim() || '3 sets',
+        reps: newTemplateExReps.trim() || '8-12 reps'
+      })
+      return updated
+    })
+    setNewTemplateExName('')
+    setNewTemplateExSets('')
+    setNewTemplateExReps('')
+  }
+
+  function removeExerciseFromCustomTemplate(exerciseNameToRemove) {
+    if (!selectedTemplate.startsWith('custom')) return
+    const key = todayWorkout.key
+    setCustomTemplates(prev => {
+      if (!prev || !prev[selectedTemplate]) return prev
+      const updated = JSON.parse(JSON.stringify(prev))
+      if (updated[selectedTemplate].exercises[key]) {
+        updated[selectedTemplate].exercises[key] = updated[selectedTemplate].exercises[key].filter(e => e.name !== exerciseNameToRemove)
+      }
+      return updated
+    })
+  }
+
   function saveCustomWorkout() {
     if (!customExerciseName.trim()) return
 
@@ -687,7 +729,7 @@ export default function Gym() {
             <div className="mt-2 text-lg font-extrabold text-slate-50">
               {countdown.days}d {countdown.hours}h {countdown.mins}m
             </div>
-            <div className="text-sm text-slate-400">Goal date: May 23, 2026 • Target: 72kg</div>
+            <div className="text-sm text-slate-400">Goal date: May 23, 2026 • Target: {localStorage.getItem('zt.targetGoalWeight') ? parseFloat(localStorage.getItem('zt.targetGoalWeight')) : 72.0}kg</div>
           </div>
 
           <div className="rounded-2xl border border-slate-800 bg-slate-900/30 p-3">
@@ -835,18 +877,67 @@ export default function Gym() {
                         </div>
                       )}
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => openLogExercise(ex)}
-                      className="rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-extrabold text-slate-900 hover:bg-emerald-400"
-                    >
-                      Log
-                    </button>
+                    <div className="flex items-center gap-2">
+                      {selectedTemplate.startsWith('custom') && (
+                        <button
+                          type="button"
+                          onClick={() => removeExerciseFromCustomTemplate(ex.name)}
+                          className="rounded-lg border border-red-500/30 px-3 py-1.5 text-xs font-bold text-red-400 hover:bg-red-500/10"
+                        >
+                          Remove
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => openLogExercise(ex)}
+                        className="rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-extrabold text-slate-900 hover:bg-emerald-400"
+                      >
+                        Log
+                      </button>
+                    </div>
                   </div>
                 </div>
               )
             })}
           </div>
+
+          {selectedTemplate.startsWith('custom') && (
+            <div className="mt-4 rounded-xl border border-dashed border-emerald-500/30 bg-emerald-950/10 p-3">
+              <div className="mb-2 text-xs font-semibold tracking-wide text-emerald-400">ADD TO {todayWorkout.title.toUpperCase()} ROUTINE</div>
+              <div className="flex flex-col gap-2">
+                <input
+                  type="text"
+                  placeholder="Exercise Name (e.g. Bicep Curls)"
+                  value={newTemplateExName}
+                  onChange={e => setNewTemplateExName(e.target.value)}
+                  className="rounded-lg border border-slate-700 bg-slate-900/50 px-3 py-2 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-emerald-500"
+                />
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="Sets (e.g. 3 sets)"
+                    value={newTemplateExSets}
+                    onChange={e => setNewTemplateExSets(e.target.value)}
+                    className="w-1/2 rounded-lg border border-slate-700 bg-slate-900/50 px-3 py-2 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-emerald-500"
+                  />
+                  <input
+                    type="text"
+                    placeholder="Reps (e.g. 8-10 reps)"
+                    value={newTemplateExReps}
+                    onChange={e => setNewTemplateExReps(e.target.value)}
+                    className="w-1/2 rounded-lg border border-slate-700 bg-slate-900/50 px-3 py-2 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-emerald-500"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={addExerciseToCustomTemplate}
+                  className="mt-1 w-full rounded-lg bg-emerald-500/20 py-2 text-xs font-bold tracking-wide text-emerald-400 hover:bg-emerald-500/30"
+                >
+                  + Append to Routine
+                </button>
+              </div>
+            </div>
+          )}
 
           <button
             type="button"

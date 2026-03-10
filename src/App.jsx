@@ -486,7 +486,7 @@ function App() {
             </div>
             <div className="text-xs font-semibold text-slate-300">
               Days Left in {month}: <span className="text-emerald-400">{daysLeft}</span> | Goal:{' '}
-              <span className="text-emerald-400">72kg</span>
+              <span className="text-emerald-400">{targetWeight}kg</span>
             </div>
           </div>
           <div className="mt-1 text-[11px] font-semibold text-slate-500">Today: {todayISO}</div>

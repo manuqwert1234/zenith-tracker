@@ -204,6 +204,53 @@ export async function fetchGymWorkouts() {
 }
 
 // ============================================
+// CUSTOM TEMPLATES SYNC
+// ============================================
+
+export async function syncCustomTemplates(templates) {
+    if (!isSyncEnabled()) return { success: false, message: 'Offline or not authenticated' }
+
+    try {
+        const userId = getUserId()
+        const templatesRef = doc(db, 'users', userId, 'profile', 'customTemplates')
+
+        if (!templates) {
+            await deleteDoc(templatesRef)
+            return { success: true }
+        }
+
+        await setDoc(templatesRef, {
+            data: templates,
+            synced: true,
+            syncedAt: new Date().toISOString()
+        })
+
+        return { success: true }
+    } catch (error) {
+        console.error('Custom template sync error:', error)
+        return { success: false, error: error.message }
+    }
+}
+
+export async function fetchCustomTemplates() {
+    if (!isSyncEnabled()) return { success: false, message: 'Offline or not authenticated' }
+
+    try {
+        const userId = getUserId()
+        const templatesRef = doc(db, 'users', userId, 'profile', 'customTemplates')
+        const snapshot = await getDoc(templatesRef)
+
+        if (snapshot.exists()) {
+            return { success: true, data: snapshot.data().data }
+        }
+        return { success: true, data: null }
+    } catch (error) {
+        console.error('Fetch custom templates error:', error)
+        return { success: false, error: error.message }
+    }
+}
+
+// ============================================
 // WEIGHT LOG SYNC
 // ============================================
 
@@ -335,13 +382,15 @@ export async function performInitialSync() {
         const workouts = JSON.parse(localStorage.getItem('zt.gym.workouts') || '[]')
         const weightLog = JSON.parse(localStorage.getItem('zt.weight.log') || '[]')
         const fluidLog = JSON.parse(localStorage.getItem('zt.fluid.log') || '{}')
+        const customTemplates = JSON.parse(localStorage.getItem('zt.gym.customTemplates') || 'null')
 
         // Sync all data
         const results = await Promise.all([
             syncBudgetTransactions(transactions),
             syncGymWorkouts(workouts),
             syncWeightLog(weightLog),
-            syncFluidLog(fluidLog)
+            syncFluidLog(fluidLog),
+            syncCustomTemplates(customTemplates)
         ])
 
         // Mark initial sync as done
@@ -383,12 +432,14 @@ export async function syncAll() {
         const workouts = JSON.parse(localStorage.getItem('zt.gym.workouts') || '[]')
         const weightLog = JSON.parse(localStorage.getItem('zt.weight.log') || '[]')
         const fluidLog = JSON.parse(localStorage.getItem('zt.fluid.log') || '{}')
+        const customTemplates = JSON.parse(localStorage.getItem('zt.gym.customTemplates') || 'null')
 
         await Promise.all([
             syncBudgetTransactions(transactions),
             syncGymWorkouts(workouts),
             syncWeightLog(weightLog),
-            syncFluidLog(fluidLog)
+            syncFluidLog(fluidLog),
+            syncCustomTemplates(customTemplates)
         ])
 
         return {
@@ -411,11 +462,12 @@ export async function fetchAll() {
     }
 
     try {
-        const [budgetResult, workoutsResult, weightResult, fluidResult] = await Promise.all([
+        const [budgetResult, workoutsResult, weightResult, fluidResult, templatesResult] = await Promise.all([
             fetchBudgetTransactions(),
             fetchGymWorkouts(),
             fetchWeightLog(),
-            fetchFluidLog()
+            fetchFluidLog(),
+            fetchCustomTemplates()
         ])
 
         if (budgetResult.success && budgetResult.data.length > 0) {
@@ -432,6 +484,10 @@ export async function fetchAll() {
 
         if (fluidResult.success && Object.keys(fluidResult.data).length > 0) {
             localStorage.setItem('zt.fluid.log', JSON.stringify(fluidResult.data))
+        }
+
+        if (templatesResult.success && templatesResult.data) {
+            localStorage.setItem('zt.gym.customTemplates', JSON.stringify(templatesResult.data))
         }
 
         return {

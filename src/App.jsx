@@ -142,16 +142,62 @@ function Onboarding({ onComplete }) {
   const [foodName, setFoodName] = useState('')
   const [foodCal, setFoodCal] = useState('')
   const [foodProtein, setFoodProtein] = useState('')
+  const [selectedRoutine, setSelectedRoutine] = useState('ppl')
 
-  const handleNext = () => setStep(2)
+  const handleNext = () => setStep(step + 1)
   const handleFinish = () => {
+
+    // Construct the custom template structure based on their choice (New Users Only)
+    let customTemplateState = null
+
+    if (selectedRoutine === 'fullbody') {
+      customTemplateState = {
+        name: 'Full Body (3 Days)',
+        split: ['day1', 'rest1', 'day2', 'rest2', 'day3', 'rest3', 'rest4'],
+        exercises: {
+          day1: [
+            { name: 'Squats', target: '3 sets', reps: '8-10 reps', note: 'Focus on depth' },
+            { name: 'Bench Press', target: '3 sets', reps: '8-10 reps' },
+            { name: 'Barbell Rows', target: '3 sets', reps: '10-12 reps' }
+          ],
+          day2: [
+            { name: 'Deadlifts', target: '3 sets', reps: '5 reps', note: 'Heavy compound' },
+            { name: 'Overhead Press', target: '3 sets', reps: '8-10 reps' },
+            { name: 'Pull-ups', target: '3 sets', reps: 'Failure' }
+          ],
+          day3: [
+            { name: 'Leg Press', target: '3 sets', reps: '12-15 reps' },
+            { name: 'Incline DB Press', target: '3 sets', reps: '10-12 reps' },
+            { name: 'Lat Pulldowns', target: '3 sets', reps: '10-12 reps' }
+          ],
+          rest1: [{ name: 'Rest / Active Recovery', target: '-', reps: '-' }],
+          rest2: [{ name: 'Rest / Active Recovery', target: '-', reps: '-' }],
+          rest3: [{ name: 'Rest / Active Recovery', target: '-', reps: '-' }],
+          rest4: [{ name: 'Rest / Active Recovery', target: '-', reps: '-' }]
+        }
+      }
+    } else if (selectedRoutine === 'blank') {
+      customTemplateState = {
+        name: 'My Custom Routine',
+        split: ['day1'],
+        exercises: {
+          day1: [{ name: 'Add First Exercise', target: '-', reps: '-' }]
+        }
+      }
+    } else {
+      // 'ppl' choice for new users points them directly to the built-in PPL template.
+      // We do this by leaving it null, causing Gym.jsx to fall back to the native object.
+      customTemplateState = null
+    }
+
     onComplete(
       parseFloat(weight) || 72.0,
       {
-        name: foodName || 'Example Food',
-        calories: parseInt(foodCal) || 0,
-        protein: parseInt(foodProtein) || 0
-      }
+        name: foodName || 'Protein Shake',
+        calories: parseInt(foodCal) || 120,
+        protein: parseInt(foodProtein) || 24
+      },
+      customTemplateState
     )
   }
 
@@ -168,7 +214,7 @@ function Onboarding({ onComplete }) {
 
         {step === 1 && (
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <h2 className="mb-4 text-sm font-bold tracking-wide text-emerald-400">STEP 1 OF 2</h2>
+            <h2 className="mb-4 text-sm font-bold tracking-wide text-emerald-400">STEP 1 OF 3</h2>
             <div className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-400">Target Body Weight (kg)</label>
@@ -192,7 +238,7 @@ function Onboarding({ onComplete }) {
 
         {step === 2 && (
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <h2 className="mb-4 text-sm font-bold tracking-wide text-emerald-400">STEP 2 OF 2</h2>
+            <h2 className="mb-4 text-sm font-bold tracking-wide text-emerald-400">STEP 2 OF 3</h2>
             <div className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-400">Pin a Quick-Add Food (Optional)</label>
@@ -230,6 +276,45 @@ function Onboarding({ onComplete }) {
               </div>
             </div>
             <button
+              onClick={handleNext}
+              className="mt-8 flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 py-4 text-sm font-black tracking-wide text-slate-950 hover:bg-emerald-400 active:scale-[0.98]"
+            >
+              Continue
+            </button>
+          </div>
+        )}
+
+        {step === 3 && (
+          <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <h2 className="mb-4 text-sm font-bold tracking-wide text-emerald-400">STEP 3 OF 3</h2>
+            <div className="space-y-3">
+              <label className="block text-xs font-semibold text-slate-400 mb-2">Choose Your Starter Routine</label>
+
+              <button
+                onClick={() => setSelectedRoutine('ppl')}
+                className={`w-full text-left rounded-xl border p-4 transition-all ${selectedRoutine === 'ppl' ? 'border-emerald-500 bg-emerald-950/30' : 'border-slate-800 bg-slate-900/40 hover:bg-slate-800'}`}
+              >
+                <div className="font-bold text-white">Push / Pull / Legs</div>
+                <div className="text-xs text-slate-400 mt-1">6 days. The classic muscle builder.</div>
+              </button>
+
+              <button
+                onClick={() => setSelectedRoutine('fullbody')}
+                className={`w-full text-left rounded-xl border p-4 transition-all ${selectedRoutine === 'fullbody' ? 'border-emerald-500 bg-emerald-950/30' : 'border-slate-800 bg-slate-900/40 hover:bg-slate-800'}`}
+              >
+                <div className="font-bold text-white">Full Body</div>
+                <div className="text-xs text-slate-400 mt-1">3 days. Great for beginners.</div>
+              </button>
+
+              <button
+                onClick={() => setSelectedRoutine('blank')}
+                className={`w-full text-left rounded-xl border p-4 transition-all ${selectedRoutine === 'blank' ? 'border-emerald-500 bg-emerald-950/30' : 'border-slate-800 bg-slate-900/40 hover:bg-slate-800'}`}
+              >
+                <div className="font-bold text-white">Blank Slate</div>
+                <div className="text-xs text-slate-400 mt-1">Build your own plan from scratch.</div>
+              </button>
+            </div>
+            <button
               onClick={handleFinish}
               className="mt-8 flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 py-4 text-sm font-black tracking-wide text-slate-950 hover:bg-emerald-400 active:scale-[0.98]"
             >
@@ -250,6 +335,7 @@ function App() {
   const [onboardingComplete, setOnboardingComplete] = useLocalStorageState('zt.onboardingComplete', false)
   const [targetWeight, setTargetWeight] = useLocalStorageState('zt.targetGoalWeight', 72.0)
   const [pinnedFood, setPinnedFood] = useLocalStorageState('zt.pinnedFood', { name: '', calories: 0, protein: 0 })
+  const [, setCustomTemplates] = useLocalStorageState('zt.gym.customTemplates', null)
 
   // Protect existing users from seeing the onboarding screen
   useEffect(() => {
@@ -362,9 +448,21 @@ function App() {
   if (!onboardingComplete) {
     return (
       <Onboarding
-        onComplete={(weight, food) => {
+        onComplete={(weight, food, templates) => {
           setTargetWeight(weight)
-          setPinnedFood(food)
+          if (food && food.name) {
+            setPinnedFood({
+              ...food,
+              price: 0,
+              unit: '1 serving',
+              emoji: '⭐',
+              category: 'custom'
+            })
+          }
+          if (templates) {
+            setCustomTemplates({ custom1: templates })
+            localStorage.setItem('zt.gym.template', '"custom1"')
+          }
           setOnboardingComplete(true)
         }}
       />

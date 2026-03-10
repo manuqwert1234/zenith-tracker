@@ -455,6 +455,7 @@ export default function Gym() {
   const [weightLog, setWeightLog] = useLocalStorageState('zt.weight.log', [])
   const [fluidLog, setFluidLog] = useLocalStorageState('zt.fluid.log', {})
   const [weightInput, setWeightInput] = useState('')
+  const [customTemplates] = useLocalStorageState('zt.gym.customTemplates', null)
 
   const [swapOpen, setSwapOpen] = useState(false)
   const [didKey, setDidKey] = useState(null)
@@ -469,8 +470,13 @@ export default function Gym() {
   const [showVolumeChart, setShowVolumeChart] = useState(false)
   const fileInputRef = useRef(null)
 
+  // Merge legacy templates with any custom ones made in onboarding
+  const mergedTemplates = useMemo(() => {
+    return { ...workoutTemplates, ...(customTemplates || {}) }
+  }, [customTemplates])
+
   // Get current template data
-  const currentTemplate = workoutTemplates[selectedTemplate] || workoutTemplates.ppl
+  const currentTemplate = mergedTemplates[selectedTemplate] || mergedTemplates.ppl
   const currentSplit = currentTemplate.split
   const currentExercises = currentTemplate.exercises
 
@@ -654,14 +660,20 @@ export default function Gym() {
           </div>
           <button
             type="button"
-            onClick={() => setSelectedTemplate(selectedTemplate === 'ppl' ? 'protocol90' : 'ppl')}
-            className="rounded-xl bg-slate-900/60 px-3 py-2 text-xs font-semibold text-slate-300 hover:bg-slate-800 active:scale-[0.98] transition-all"
+            onClick={() => {
+              const keys = Object.keys(mergedTemplates)
+              const currentIndex = keys.indexOf(selectedTemplate)
+              // Go to the next key or back to 0 if at the end/not found
+              const nextIndex = (Math.max(0, currentIndex) + 1) % keys.length
+              setSelectedTemplate(keys[nextIndex])
+            }}
+            className="rounded-xl bg-slate-900/60 px-3 py-2 text-xs font-semibold text-slate-300 hover:bg-slate-800 active:scale-[0.98] transition-all text-left min-w-[130px]"
           >
             <div className="flex items-center gap-1.5">
-              <ArrowLeftRight className="h-3 w-3" />
-              <span>{currentTemplate.name}</span>
+              <ArrowLeftRight className="h-3 w-3 shrink-0" />
+              <span className="truncate">{currentTemplate.name}</span>
             </div>
-            <div className="text-[10px] text-slate-500 mt-0.5">{currentTemplate.description}</div>
+            {currentTemplate.description && <div className="text-[10px] text-slate-500 mt-0.5 truncate">{currentTemplate.description}</div>}
           </button>
         </div>
 

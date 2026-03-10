@@ -1208,8 +1208,8 @@ export default function Gym() {
 
             <div className="mt-4 space-y-2">
               {sets.map((set, idx) => (
-                <div key={idx} className="flex gap-2">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-800 text-xs font-bold text-slate-300">
+                <div key={idx} className="flex gap-1.5 sm:gap-2">
+                  <div className="flex h-10 w-8 sm:w-10 shrink-0 items-center justify-center rounded-lg bg-slate-800 text-xs font-bold text-slate-300">
                     {idx + 1}
                   </div>
                   <input
@@ -1221,7 +1221,7 @@ export default function Gym() {
                       newSets[idx].weight = e.target.value
                       setSets(newSets)
                     }}
-                    className="flex-1 rounded-lg border border-slate-800 bg-slate-950/50 px-3 py-2 text-sm text-slate-100 outline-none"
+                    className="flex-1 min-w-0 rounded-lg border border-slate-800 bg-slate-950/50 px-2 sm:px-3 py-2 text-sm text-slate-100 outline-none"
                     inputMode="decimal"
                   />
                   <input
@@ -1233,19 +1233,19 @@ export default function Gym() {
                       newSets[idx].reps = e.target.value
                       setSets(newSets)
                     }}
-                    className="w-20 rounded-lg border border-slate-800 bg-slate-950/50 px-3 py-2 text-sm text-slate-100 outline-none"
+                    className="w-16 sm:w-20 shrink-0 rounded-lg border border-slate-800 bg-slate-950/50 px-2 sm:px-3 py-2 text-sm text-slate-100 outline-none"
                     inputMode="numeric"
                   />
                   <input
                     type="number"
-                    placeholder="RPE (1-10)"
+                    placeholder="RPE"
                     value={set.rpe}
                     onChange={(e) => {
                       const newSets = [...sets]
                       newSets[idx].rpe = e.target.value
                       setSets(newSets)
                     }}
-                    className="w-24 rounded-lg border border-slate-800 bg-slate-950/50 px-3 py-2 text-sm text-slate-100 outline-none"
+                    className="w-14 sm:w-20 shrink-0 rounded-lg border border-slate-800 bg-slate-950/50 px-2 sm:px-3 py-2 text-sm text-slate-100 outline-none"
                     inputMode="numeric"
                   />
                 </div>

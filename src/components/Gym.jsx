@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, useRef, useCallback } from 'react'
-import { ArrowLeftRight, CalendarClock, Dumbbell, Camera, TrendingUp, Plus, X, Image as ImageIcon, History, Trash2, Timer, Flame, BarChart2, ChevronDown, ChevronUp, Scale } from 'lucide-react'
+import { ArrowLeftRight, CalendarClock, Dumbbell, Camera, TrendingUp, Plus, X, Image as ImageIcon, History, Trash2, Timer, Flame, BarChart2, ChevronDown, ChevronUp, Scale, Droplet } from 'lucide-react'
 
 function startOfToday() {
   const now = new Date()
@@ -194,6 +194,8 @@ function VolumeChart({ workouts }) {
   const totalLastWeek = weeks[2]?.volume || 0
   const change = totalLastWeek > 0 ? Math.round(((totalThisWeek - totalLastWeek) / totalLastWeek) * 100) : null
 
+  const isPlateau = totalLastWeek > 0 && totalThisWeek > 0 && totalThisWeek <= totalLastWeek
+
   return (
     <div className="mt-4">
       <div className="flex items-center justify-between">
@@ -204,10 +206,25 @@ function VolumeChart({ workouts }) {
           </div>
         )}
       </div>
+
+      {isPlateau && (
+        <div className="mt-3 rounded-xl border border-red-500/50 bg-red-950/30 px-3 py-2">
+          <div className="flex items-center gap-1.5 text-xs font-extrabold text-red-500">
+            <TrendingUp className="h-4 w-4" />
+            ML Plateau Alert
+          </div>
+          <div className="mt-1 text-xs font-medium text-red-200/80">
+            Volume is stalling. You are just going through the motions. Your "Armor" is no longer growing. Force the body to change.
+          </div>
+        </div>
+      )}
+
       <div className="mt-3 flex items-end gap-2 h-24">
         {weeks.map((w, i) => {
           const heightPct = maxVol > 0 ? Math.max((w.volume / maxVol) * 100, w.volume > 0 ? 8 : 2) : 2
           const isThisWeek = i === 3
+          // Stagnant week gets colored red if plateauing
+          const barColor = isThisWeek && isPlateau ? 'bg-red-500' : isThisWeek ? 'bg-emerald-500' : 'bg-slate-700'
           return (
             <div key={i} className="flex flex-1 flex-col items-center gap-1">
               <div className="text-[9px] font-bold text-slate-500">
@@ -215,7 +232,7 @@ function VolumeChart({ workouts }) {
               </div>
               <div className="flex w-full flex-1 items-end">
                 <div
-                  className={`w-full rounded-t-lg transition-all ${isThisWeek ? 'bg-emerald-500' : 'bg-slate-700'}`}
+                  className={`w-full rounded-t-lg transition-all ${barColor}`}
                   style={{ height: `${heightPct}%` }}
                 />
               </div>
@@ -364,6 +381,69 @@ function getOverloadSuggestion(exerciseName, workouts) {
   return { currentWeight, suggestedWeight: currentWeight + 2.5 }
 }
 
+// ─── ML Feature: Coasting Alert ──────────────────────────────────────────────
+function getCoastingAlert(exerciseName, workouts) {
+  const sessions = workouts
+    .filter(w => w.exercises?.some(e => e.name === exerciseName))
+    .sort((a, b) => new Date(b.date) - new Date(a.date))
+    .slice(0, 2)
+
+  // Needs at least 2 past sessions to detect coasting
+  if (sessions.length < 2) return null
+
+  // Check if BOTH past sessions had an average RPE <= 7
+  const bothCoasting = sessions.every(session => {
+    const ex = session.exercises.find(e => e.name === exerciseName)
+    if (!ex?.sets?.length) return false
+
+    const validSets = ex.sets.filter(s => s.rpe && Number(s.rpe) > 0)
+    if (validSets.length === 0) return false
+
+    const avgRpe = validSets.reduce((acc, s) => acc + Number(s.rpe), 0) / validSets.length
+    return avgRpe <= 7
+  })
+
+  if (!bothCoasting) return null
+
+  // Check if weight stayed the same across both sessions
+  const latestEx = sessions[0].exercises.find(e => e.name === exerciseName)
+  const prevEx = sessions[1].exercises.find(e => e.name === exerciseName)
+
+  const latestMaxWeight = Math.max(...latestEx.sets.map(s => Number(s.weight) || 0))
+  const prevMaxWeight = Math.max(...prevEx.sets.map(s => Number(s.weight) || 0))
+
+  if (latestMaxWeight <= 0 || latestMaxWeight > prevMaxWeight) return null
+
+  return true
+}
+
+// ─── ML Feature: Trend Weight Helper ─────────────────────────────────────────
+function computeTrendWeight(weightLog, dateISO) {
+  if (!weightLog || weightLog.length === 0) return null
+
+  // Find the exact date or the closest date prior to it
+  const pastEntries = weightLog
+    .filter(e => e.date <= dateISO)
+    .sort((a, b) => b.date.localeCompare(a.date))
+
+  if (pastEntries.length === 0) return null
+
+  const targetDateObj = new Date(dateISO)
+  // Get entries within 7 days of the target date prior
+  const sevenDaysAgo = new Date(targetDateObj)
+  sevenDaysAgo.setDate(targetDateObj.getDate() - 7)
+  const sevenDaysAgoISO = toISODate(sevenDaysAgo)
+
+  const recentWindow = pastEntries.filter(e => e.date >= sevenDaysAgoISO)
+
+  // If no weights in the 7 day window, just return the most recent known weight
+  if (recentWindow.length === 0) return pastEntries[0].weight
+
+  // Calculate average
+  const sum = recentWindow.reduce((acc, curr) => acc + curr.weight, 0)
+  return (sum / recentWindow.length).toFixed(1)
+}
+
 export default function Gym() {
   const todayISO = toISODate(startOfToday())
   const [selectedTemplate, setSelectedTemplate] = useLocalStorageState('zt.gym.template', 'ppl')
@@ -373,12 +453,13 @@ export default function Gym() {
   const [photos, setPhotos] = useLocalStorageState('zt.gym.photos', [])
   const [streak, setStreak] = useLocalStorageState('zt.gym.streak', { lastDate: null, count: 0 })
   const [weightLog, setWeightLog] = useLocalStorageState('zt.weight.log', [])
+  const [fluidLog, setFluidLog] = useLocalStorageState('zt.fluid.log', {})
   const [weightInput, setWeightInput] = useState('')
 
   const [swapOpen, setSwapOpen] = useState(false)
   const [didKey, setDidKey] = useState(null)
   const [logExercise, setLogExercise] = useState(null)
-  const [sets, setSets] = useState([{ weight: '', reps: '' }])
+  const [sets, setSets] = useState([{ weight: '', reps: '', rpe: '' }])
   const [notes, setNotes] = useState('')
   const [photoGalleryOpen, setPhotoGalleryOpen] = useState(false)
   const [customWorkoutOpen, setCustomWorkoutOpen] = useState(false)
@@ -796,15 +877,29 @@ export default function Gym() {
           const sorted = [...weightLog].sort((a, b) => b.date.localeCompare(a.date))
           const todayEntry = weightLog.find(e => e.date === todayISO)
           const latest = sorted[0]
+          const trendWeight = computeTrendWeight(weightLog, todayISO)
+
           return (
             <div className="mt-2 flex items-end justify-between">
               <div>
                 {todayEntry ? (
-                  <div className="text-2xl font-extrabold text-slate-50">{todayEntry.weight} <span className="text-base font-semibold text-slate-400">kg</span></div>
+                  <div>
+                    <div className="text-2xl font-extrabold text-slate-50">{todayEntry.weight} <span className="text-base font-semibold text-slate-400">kg</span></div>
+                    {trendWeight && (
+                      <div className="mt-1 text-xs font-semibold text-blue-400">
+                        Trend: {trendWeight}kg <span className="font-normal text-slate-500">(True BW)</span>
+                      </div>
+                    )}
+                  </div>
                 ) : latest ? (
                   <div>
                     <div className="text-2xl font-extrabold text-slate-50">{latest.weight} <span className="text-base font-semibold text-slate-400">kg</span></div>
-                    <div className="text-xs text-slate-500">Last logged: {latest.date}</div>
+                    <div className="mt-1 text-xs text-slate-500">Last logged: {latest.date}</div>
+                    {trendWeight && (
+                      <div className="text-xs font-semibold text-blue-400">
+                        Trend: {trendWeight}kg <span className="font-normal text-slate-500">(True BW)</span>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="text-sm text-slate-500">No weight logged yet</div>
@@ -853,6 +948,63 @@ export default function Gym() {
             Log
           </button>
         </div>
+      </div>
+
+      {/* ── FLUID INTAKE ───────────────────────────────────────────────────────── */}
+      <div className="rounded-2xl border border-slate-800 bg-slate-950/50 p-4">
+        <div className="flex items-center gap-2 text-xs font-semibold tracking-wide text-slate-400">
+          <Droplet className="h-4 w-4 text-cyan-400" />
+          FLUID INTAKE
+        </div>
+
+        {(() => {
+          const todayFluid = fluidLog[todayISO] || 0
+          const pct = Math.min((todayFluid / 3.0) * 100, 100)
+          const blurWarning = todayFluid > 0 && todayFluid < 1.5
+
+          return (
+            <div className="mt-3">
+              <div className="flex items-end justify-between">
+                <div>
+                  <div className="text-2xl font-extrabold text-slate-50">{todayFluid.toFixed(1)} <span className="text-base font-semibold text-slate-400">L</span></div>
+                  {blurWarning && (
+                    <div className="mt-1 text-[10px] font-bold text-amber-500 uppercase tracking-widest leading-tight">
+                      ⚠️ BLUR WARNING: Drink more to deflate
+                    </div>
+                  )}
+                </div>
+                <div className="text-right">
+                  <div className="text-xs text-slate-500">Goal</div>
+                  <div className="text-lg font-extrabold text-cyan-400">3.0 L</div>
+                </div>
+              </div>
+
+              <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-slate-900">
+                <div
+                  className={`h-full transition-all duration-500 ${pct === 100 ? 'bg-cyan-400' : blurWarning ? 'bg-amber-500' : 'bg-blue-500'}`}
+                  style={{ width: `${pct}%` }}
+                />
+              </div>
+
+              <div className="mt-4 grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setFluidLog({ ...fluidLog, [todayISO]: Math.max(0, todayFluid - 0.5) })}
+                  className="rounded-xl border border-slate-800 bg-slate-900/50 px-3 py-2 text-sm font-bold text-slate-300 hover:bg-slate-800"
+                >
+                  - 0.5L
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFluidLog({ ...fluidLog, [todayISO]: todayFluid + 0.5 })}
+                  className="rounded-xl bg-cyan-500/20 px-3 py-2 text-sm font-extrabold text-cyan-400 hover:bg-cyan-500/30"
+                >
+                  + 0.5L
+                </button>
+              </div>
+            </div>
+          )
+        })()}
       </div>
 
       <div className="rounded-2xl border border-slate-800 bg-slate-950/50 p-4">
@@ -914,64 +1066,82 @@ export default function Gym() {
             {(historyOpen ? workouts : workouts.slice(-3))
               .slice()
               .reverse()
-              .map((workout) => (
-                <div key={workout.id} className="rounded-xl border border-slate-800 bg-slate-900/30 p-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <div className="text-xs font-semibold text-slate-400">
-                          {new Date(workout.date).toLocaleDateString('en-US', {
-                            month: 'short',
-                            day: 'numeric',
-                            year: 'numeric',
-                          })}
-                        </div>
-                        {workout.dayType !== 'custom' && (
-                          <div className="rounded-md bg-slate-800 px-2 py-0.5 text-xs font-bold text-slate-300">
-                            {split.find((s) => s.key === workout.dayType)?.title || workout.dayType}
+              .map((workout) => {
+                const workoutDateISO = toISODate(new Date(workout.date))
+                const trendForWorkout = computeTrendWeight(weightLog, workoutDateISO)
+                let maxWeight = 0
+                workout.exercises?.forEach(ex => {
+                  ex.sets?.forEach(s => {
+                    const w = parseFloat(s.weight)
+                    if (!isNaN(w) && w > maxWeight) maxWeight = w
+                  })
+                })
+                const rsi = trendForWorkout && maxWeight > 0 ? (maxWeight / parseFloat(trendForWorkout)).toFixed(2) : null
+
+                return (
+                  <div key={workout.id} className="rounded-xl border border-slate-800 bg-slate-900/30 p-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <div className="text-xs font-semibold text-slate-400">
+                            {new Date(workout.date).toLocaleDateString('en-US', {
+                              month: 'short',
+                              day: 'numeric',
+                              year: 'numeric',
+                            })}
                           </div>
-                        )}
-                        {workout.dayType === 'custom' && (
-                          <div className="rounded-md bg-emerald-500/20 px-2 py-0.5 text-xs font-bold text-emerald-400">
-                            Custom
-                          </div>
-                        )}
-                      </div>
-                      <div className="mt-2 space-y-1">
-                        {workout.exercises?.map((exercise, exIdx) => (
-                          <div key={exIdx} className="text-sm">
-                            <div className="font-bold text-slate-100">{exercise.name}</div>
-                            <div className="mt-0.5 flex flex-wrap gap-1">
-                              {exercise.sets?.map((set, setIdx) => (
-                                <div
-                                  key={setIdx}
-                                  className="rounded-md bg-slate-800/50 px-2 py-0.5 text-xs text-slate-300"
-                                >
-                                  {set.weight}kg × {set.reps}
-                                </div>
-                              ))}
+                          {workout.dayType !== 'custom' && (
+                            <div className="rounded-md bg-slate-800 px-2 py-0.5 text-xs font-bold text-slate-300">
+                              {split.find((s) => s.key === workout.dayType)?.title || workout.dayType}
                             </div>
-                            {exercise.notes && (
-                              <div className="mt-1 text-xs italic text-slate-500">{exercise.notes}</div>
-                            )}
-                          </div>
-                        ))}
+                          )}
+                          {workout.dayType === 'custom' && (
+                            <div className="rounded-md bg-emerald-500/20 px-2 py-0.5 text-xs font-bold text-emerald-400">
+                              Custom
+                            </div>
+                          )}
+                          {rsi && (
+                            <div className="rounded-md bg-indigo-500/20 px-2 py-0.5 text-xs font-bold text-indigo-400">
+                              RSI: {rsi}
+                            </div>
+                          )}
+                        </div>
+                        <div className="mt-2 space-y-1">
+                          {workout.exercises?.map((exercise, exIdx) => (
+                            <div key={exIdx} className="text-sm">
+                              <div className="font-bold text-slate-100">{exercise.name}</div>
+                              <div className="mt-0.5 flex flex-wrap gap-1">
+                                {exercise.sets?.map((set, setIdx) => (
+                                  <div
+                                    key={setIdx}
+                                    className="rounded-md bg-slate-800/50 px-2 py-0.5 text-xs text-slate-300"
+                                  >
+                                    {set.weight}kg × {set.reps}
+                                  </div>
+                                ))}
+                              </div>
+                              {exercise.notes && (
+                                <div className="mt-1 text-xs italic text-slate-500">{exercise.notes}</div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
                       </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (confirm('Delete this workout?')) {
+                            setWorkouts((prev) => prev.filter((w) => w.id !== workout.id))
+                          }
+                        }}
+                        className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-800 hover:text-red-400"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (confirm('Delete this workout?')) {
-                          setWorkouts((prev) => prev.filter((w) => w.id !== workout.id))
-                        }
-                      }}
-                      className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-800 hover:text-red-400"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
                   </div>
-                </div>
-              ))}
+                )
+              })}
           </div>
         ) : (
           <div className="mt-3 flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-800 bg-slate-900/30 py-8 text-center">
@@ -1019,6 +1189,23 @@ export default function Gym() {
               )
             })()}
 
+            {/* ML Coasting Alert */}
+            {(() => {
+              const coasting = getCoastingAlert(logExercise.name, workouts)
+              if (!coasting) return null
+              return (
+                <div className="mt-3 rounded-xl border border-amber-500/30 bg-amber-950/20 px-3 py-2">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-amber-500">
+                    <TrendingUp className="h-4 w-4" />
+                    ML Coasting Alert
+                  </div>
+                  <div className="mt-1 text-xs text-amber-200/70">
+                    You've logged RPE 7 or lower for two weeks. Coasting detected. Increase weight now or the transformation stalls.
+                  </div>
+                </div>
+              )
+            })()}
+
             <div className="mt-4 space-y-2">
               {sets.map((set, idx) => (
                 <div key={idx} className="flex gap-2">
@@ -1049,13 +1236,25 @@ export default function Gym() {
                     className="w-20 rounded-lg border border-slate-800 bg-slate-950/50 px-3 py-2 text-sm text-slate-100 outline-none"
                     inputMode="numeric"
                   />
+                  <input
+                    type="number"
+                    placeholder="RPE (1-10)"
+                    value={set.rpe}
+                    onChange={(e) => {
+                      const newSets = [...sets]
+                      newSets[idx].rpe = e.target.value
+                      setSets(newSets)
+                    }}
+                    className="w-24 rounded-lg border border-slate-800 bg-slate-950/50 px-3 py-2 text-sm text-slate-100 outline-none"
+                    inputMode="numeric"
+                  />
                 </div>
               ))}
             </div>
 
             <button
               type="button"
-              onClick={() => setSets([...sets, { weight: '', reps: '' }])}
+              onClick={() => setSets([...sets, { weight: '', reps: '', rpe: '' }])}
               className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-emerald-400 hover:text-emerald-300"
             >
               <Plus className="h-3 w-3" />

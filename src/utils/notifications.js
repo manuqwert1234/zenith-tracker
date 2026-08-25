@@ -1,119 +1,95 @@
-// Notification utility for ZenithTracker PWA
+// Local meal-reminder notifications for CalTrack.
+//
+// These use the browser Notification API and setTimeout scheduling, so they
+// only fire while this tab (or an installed PWA window) is open in the
+// background — there's no server, so there's no push. That's a fair
+// trade-off for an app that keeps 100% of your data on-device.
 
 export async function requestNotificationPermission() {
     if (!('Notification' in window)) {
         console.log('This browser does not support notifications')
         return false
     }
-
-    if (Notification.permission === 'granted') {
-        return true
-    }
-
+    if (Notification.permission === 'granted') return true
     if (Notification.permission !== 'denied') {
         const permission = await Notification.requestPermission()
         return permission === 'granted'
     }
-
     return false
 }
 
+export function notificationPermission() {
+    if (!('Notification' in window)) return 'unsupported'
+    return Notification.permission
+}
+
 export function showNotification(title, options = {}) {
-    if (Notification.permission !== 'granted') {
-        return
-    }
-
-    const defaultOptions = {
-        icon: '/vite.svg',
-        badge: '/vite.svg',
-        vibrate: [200, 100, 200],
-        ...options,
-    }
-
+    if (!('Notification' in window) || Notification.permission !== 'granted') return
     try {
-        new Notification(title, defaultOptions)
+        new Notification(title, {
+            icon: '/vite.svg',
+            badge: '/vite.svg',
+            ...options,
+        })
     } catch (error) {
         console.error('Error showing notification:', error)
     }
 }
 
-// Budget-specific notifications
-export function notifyOverspending(amount, limit) {
-    showNotification('🚨 Over Budget!', {
-        body: `You've spent ₹${amount}, which is ₹${Math.ceil(amount - limit)} over your daily limit.`,
-        tag: 'overspending',
-        requireInteraction: true,
+export function notifyMealReminder(label) {
+    showNotification(`🍽️ Time to log ${label}`, {
+        body: `Don't forget to log your ${label.toLowerCase()} — a quick photo or tap on a recent food takes a few seconds.`,
+        tag: `meal-${label}`,
     })
 }
 
-export function notifyDailyLimit(limit) {
-    showNotification('💰 Daily Limit Reminder', {
-        body: `Your daily limit today is ₹${Math.floor(limit)}. Stay on track!`,
-        tag: 'daily-limit',
+export function notifyGoalHit(kind) {
+    showNotification('🎯 Goal hit!', {
+        body: kind === 'protein' ? "You've hit your protein goal for today." : "You've hit today's goal.",
+        tag: `goal-${kind}`,
     })
 }
 
-export function notifyCheatMeal(perDayDrop) {
-    showNotification('🍕 Cheat Meal Logged', {
-        body: `Daily limit will drop by ₹${perDayDrop} for the rest of the month.`,
-        tag: 'cheat-meal',
-    })
+const DEFAULT_REMINDER_TIMES = [
+    { id: 'breakfast', label: 'Breakfast', hour: 8, minute: 30, enabled: true },
+    { id: 'lunch', label: 'Lunch', hour: 13, minute: 0, enabled: true },
+    { id: 'dinner', label: 'Dinner', hour: 19, minute: 30, enabled: true },
+]
+
+export function defaultReminderTimes() {
+    return DEFAULT_REMINDER_TIMES.map((r) => ({ ...r }))
 }
 
-// Gym-specific notifications
-export function notifyWorkoutDay(dayType) {
-    const dayEmoji = {
-        push: '💪',
-        pull: '🔥',
-        legs: '🦵',
-        rest: '😴',
-    }
+let scheduledTimers = []
 
-    const dayName = dayType.charAt(0).toUpperCase() + dayType.slice(1)
+/**
+ * Schedule (or reschedule) in-tab reminders for the given list of
+ * { id, label, hour, minute, enabled } entries. Clears any previously
+ * scheduled timers first. Each reminder reschedules itself ~24h later so it
+ * keeps firing daily as long as the tab stays open.
+ */
+export function scheduleMealReminders(times) {
+    clearScheduledReminders()
+    if (!Array.isArray(times)) return
 
-    showNotification(`${dayEmoji[dayType]} ${dayName} Day!`, {
-        body: dayType === 'rest'
-            ? 'Recovery day! Light activity and stretching recommended.'
-            : `Time to hit the gym! Today is ${dayName} day.`,
-        tag: 'workout-reminder',
-    })
-}
+    times.filter((t) => t.enabled).forEach((t) => {
+        const fire = () => {
+            const now = new Date()
+            const next = new Date(now.getFullYear(), now.getMonth(), now.getDate(), t.hour, t.minute, 0, 0)
+            if (next <= now) next.setDate(next.getDate() + 1)
+            const delay = next.getTime() - now.getTime()
 
-export function notifyProgressPhoto() {
-    showNotification('📸 Progress Photo Time!', {
-        body: 'Take a weekly progress photo to track your V-Taper transformation!',
-        tag: 'progress-photo',
-    })
-}
-
-export function notifyWorkoutComplete(exerciseCount) {
-    showNotification('✅ Workout Complete!', {
-        body: `Great job! You logged ${exerciseCount} exercise${exerciseCount > 1 ? 's' : ''} today.`,
-        tag: 'workout-complete',
-    })
-}
-
-// Schedule daily reminders
-export function scheduleDailyReminders() {
-    const now = new Date()
-    const morningReminder = new Date()
-    morningReminder.setHours(8, 0, 0, 0) // 8 AM
-
-    if (morningReminder < now) {
-        // If it's past 8 AM, schedule for tomorrow
-        morningReminder.setDate(morningReminder.getDate() + 1)
-    }
-
-    const timeUntilMorning = morningReminder - now
-
-    // Schedule morning reminder
-    setTimeout(() => {
-        const dailyLimit = localStorage.getItem('zt.dailyLimit')
-        if (dailyLimit) {
-            notifyDailyLimit(Number(dailyLimit))
+            const timer = setTimeout(() => {
+                notifyMealReminder(t.label)
+                fire() // reschedule for the following day
+            }, delay)
+            scheduledTimers.push(timer)
         }
+        fire()
+    })
+}
 
-        // Reschedule for next day
-        scheduleDailyReminders()
-    }, timeUntilMorning)
+export function clearScheduledReminders() {
+    scheduledTimers.forEach((t) => clearTimeout(t))
+    scheduledTimers = []
 }

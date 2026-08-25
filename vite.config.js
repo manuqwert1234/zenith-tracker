@@ -15,11 +15,14 @@ export default defineConfig({
         skipWaiting: true,
         clientsClaim: true,
         cleanupOutdatedCaches: true,
+        // Cloud sync / push (Firebase) is optional and dynamically imported —
+        // don't precache it, so browsers that never use it never fetch it.
+        globIgnores: ['**/firebaseSync-*.js', '**/CloudSyncSection-*.js', '**/PushReminderSection-*.js'],
       },
       manifest: {
-        name: 'ZenithTracker',
-        short_name: 'Zenith',
-        description: 'Mobile-first budget + gym tracker for VIT Chennai - v2.1',
+        name: 'CalTrack',
+        short_name: 'CalTrack',
+        description: 'A private, local-first calorie & nutrition tracker with photo food logs and AI-friendly exports.',
         theme_color: '#0f172a',
         background_color: '#0f172a',
         display: 'standalone',

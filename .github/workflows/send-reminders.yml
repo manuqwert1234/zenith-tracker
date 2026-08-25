@@ -1,0 +1,37 @@
+name: Send meal reminders
+
+# Free scheduled push notifications for CalTrack — runs on GitHub's free
+# Actions minutes, no paid cloud service involved. Inert until you add the
+# required repo secrets (see README "Push notifications").
+#
+# GitHub's cron scheduler is best-effort and can lag a few minutes under
+# load, which is why the notifier checks a 10-minute window per reminder.
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch: {}
+
+jobs:
+  send-reminders:
+    runs-on: ubuntu-latest
+    if: ${{ vars.PUSH_NOTIFICATIONS_ENABLED == 'true' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install notifier dependencies
+        working-directory: notifier
+        run: npm install --omit=dev
+
+      - name: Send due reminders
+        working-directory: notifier
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+          VAPID_SUBJECT: ${{ secrets.VAPID_SUBJECT }}
+        run: npm start

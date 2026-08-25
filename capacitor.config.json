@@ -1,5 +1,5 @@
 {
-  "appId": "com.zenithtracker.app",
-  "appName": "ZenithTracker",
+  "appId": "com.caltrack.app",
+  "appName": "CalTrack",
   "webDir": "dist"
 }

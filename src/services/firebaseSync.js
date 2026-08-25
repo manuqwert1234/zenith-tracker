@@ -1,38 +1,46 @@
+// Optional cloud backup/sync. Entirely inert unless the user has configured
+// their own Firebase project (see src/config/firebase.js + .env.example).
+// The app never calls into Firebase until isFirebaseConfigured() is true.
+
 import { initializeApp } from 'firebase/app'
 import { getAuth, signInAnonymously, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, linkWithPopup } from 'firebase/auth'
-import { getFirestore, collection, doc, setDoc, getDoc, getDocs, deleteDoc, query, orderBy, onSnapshot } from 'firebase/firestore'
-import { getStorage, ref, uploadString, getDownloadURL, deleteObject } from 'firebase/storage'
-import firebaseConfig from '../config/firebase.prod.js'
+import { getFirestore, collection, doc, setDoc, getDoc, getDocs, query, orderBy } from 'firebase/firestore'
+import firebaseConfig, { isFirebaseConfigured } from '../config/firebase.js'
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig)
-const auth = getAuth(app)
-const db = getFirestore(app)
-const storage = getStorage(app)
+let app = null
+let auth = null
+let db = null
+let googleProvider = null
 
-// Initialize Google Provider
-const googleProvider = new GoogleAuthProvider()
+if (isFirebaseConfigured()) {
+    app = initializeApp(firebaseConfig)
+    auth = getAuth(app)
+    db = getFirestore(app)
+    googleProvider = new GoogleAuthProvider()
+}
 
 let currentUser = null
 let syncEnabled = false
 
-// Initialize authentication
+export function isCloudSyncAvailable() {
+    return isFirebaseConfigured()
+}
+
+// Initialize authentication. No-ops (resolves null) if not configured.
 export async function initializeAuth() {
+    if (!isFirebaseConfigured()) return null
+
     return new Promise((resolve, reject) => {
-        const unsubscribe = onAuthStateChanged(auth, async (user) => {
+        onAuthStateChanged(auth, async (user) => {
             if (user) {
                 currentUser = user
                 syncEnabled = true
-                console.log('✓ Firebase authenticated:', user.uid, user.isAnonymous ? '(Anonymous)' : '(Verified)')
                 resolve(user)
             } else {
-                // If no user, standard flow waits for manual login or auto-signs in anonymously
-                // For this app, we default to anonymous if not logged in
                 try {
                     const result = await signInAnonymously(auth)
                     currentUser = result.user
                     syncEnabled = true
-                    console.log('✓ Created new anonymous session:', result.user.uid)
                     resolve(result.user)
                 } catch (error) {
                     console.error('Auth initialization error:', error)
@@ -40,29 +48,23 @@ export async function initializeAuth() {
                     reject(error)
                 }
             }
-            // unsubscribe() // Don't unsubscribe, we want to listen for auth changes (like linking)
         })
     })
 }
 
 export async function signInWithGoogle() {
-    if (!auth) throw new Error('Auth not initialized')
+    if (!isFirebaseConfigured() || !auth) {
+        return { success: false, error: 'Cloud sync is not configured for this deployment.' }
+    }
 
     try {
-        // If currently anonymous, try to link first
         if (currentUser && currentUser.isAnonymous) {
             try {
                 const result = await linkWithPopup(currentUser, googleProvider)
-                console.log('✓ Linked anonymous account to Google:', result.user.uid)
                 return { success: true, user: result.user, method: 'linked' }
             } catch (linkError) {
-                // If linking fails (e.g. email already in use), fall back to normal sign in
                 if (linkError.code === 'auth/credential-already-in-use') {
-                    // This means the Google account already exists. We must sign in to it.
-                    // WARNING: This switches the user and might "hide" current anonymous data locally unless we merge.
-                    // For now, let's just sign in.
                     const result = await signInWithPopup(auth, googleProvider)
-                    console.log('✓ Signed in to existing Google account:', result.user.uid)
                     return { success: true, user: result.user, method: 'signin' }
                 }
                 throw linkError
@@ -77,427 +79,153 @@ export async function signInWithGoogle() {
     }
 }
 
-// Get current user ID
 function getUserId() {
-    if (!currentUser) {
-        throw new Error('User not authenticated')
-    }
+    if (!currentUser) throw new Error('User not authenticated')
     return currentUser.uid
 }
 
-// Check if sync is available
 export function isSyncEnabled() {
-    return syncEnabled && navigator.onLine
+    return isFirebaseConfigured() && syncEnabled && navigator.onLine
+}
+
+export function getCurrentUser() {
+    return currentUser
 }
 
 // ============================================
-// BUDGET TRANSACTIONS SYNC
+// Generic collection sync helpers
 // ============================================
 
-export async function syncBudgetTransactions(transactions) {
+async function syncCollection(name, items, idFn) {
     if (!isSyncEnabled()) return { success: false, message: 'Offline or not authenticated' }
-
     try {
         const userId = getUserId()
-        const budgetRef = collection(db, 'users', userId, 'budget')
-
-        // Upload all transactions
-        const promises = transactions.map(async (txn) => {
-            const docRef = doc(budgetRef, txn.id)
-            await setDoc(docRef, {
-                ...txn,
-                synced: true,
-                syncedAt: new Date().toISOString()
-            })
-        })
-
-        await Promise.all(promises)
-        return { success: true, count: transactions.length }
+        const ref = collection(db, 'users', userId, name)
+        await Promise.all(
+            items.map((item) =>
+                setDoc(doc(ref, idFn(item)), { ...item, synced: true, syncedAt: new Date().toISOString() })
+            )
+        )
+        return { success: true, count: items.length }
     } catch (error) {
-        console.error('Budget sync error:', error)
+        console.error(`${name} sync error:`, error)
         return { success: false, error: error.message }
     }
 }
 
-export async function fetchBudgetTransactions() {
-    if (!isSyncEnabled()) return { success: false, message: 'Offline or not authenticated' }
-
+async function fetchCollection(name, orderField = 'date') {
+    if (!isSyncEnabled()) return { success: false, message: 'Offline or not authenticated', data: [] }
     try {
         const userId = getUserId()
-        const budgetRef = collection(db, 'users', userId, 'budget')
-        const q = query(budgetRef, orderBy('date', 'desc'))
+        const ref = collection(db, 'users', userId, name)
+        const q = query(ref, orderBy(orderField, 'desc'))
         const snapshot = await getDocs(q)
-
-        const transactions = []
-        snapshot.forEach((doc) => {
-            transactions.push(doc.data())
-        })
-
-        return { success: true, data: transactions }
+        const data = []
+        snapshot.forEach((d) => data.push(d.data()))
+        return { success: true, data }
     } catch (error) {
-        console.error('Fetch budget error:', error)
-        return { success: false, error: error.message }
+        console.error(`Fetch ${name} error:`, error)
+        return { success: false, error: error.message, data: [] }
     }
 }
 
-export async function deleteBudgetTransaction(txnId) {
-    if (!isSyncEnabled()) return { success: false }
+const LS_KEYS = {
+    foodLog: 'ct.foodLog',
+    activityLog: 'ct.activityLog',
+    weightLog: 'ct.weightLog',
+    customFoods: 'ct.customFoods',
+}
 
+function readLocal(key, fallback) {
     try {
-        const userId = getUserId()
-        const docRef = doc(db, 'users', userId, 'budget', txnId)
-        await deleteDoc(docRef)
-        return { success: true }
-    } catch (error) {
-        console.error('Delete budget error:', error)
-        return { success: false }
+        const raw = localStorage.getItem(key)
+        return raw == null ? fallback : JSON.parse(raw)
+    } catch {
+        return fallback
     }
 }
-
-// ============================================
-// GYM WORKOUTS SYNC
-// ============================================
-
-export async function syncGymWorkouts(workouts) {
-    if (!isSyncEnabled()) return { success: false, message: 'Offline or not authenticated' }
-
-    try {
-        const userId = getUserId()
-        const workoutsRef = collection(db, 'users', userId, 'workouts')
-
-        const promises = workouts.map(async (workout) => {
-            const docRef = doc(workoutsRef, workout.id)
-            await setDoc(docRef, {
-                ...workout,
-                synced: true,
-                syncedAt: new Date().toISOString()
-            })
-        })
-
-        await Promise.all(promises)
-        return { success: true, count: workouts.length }
-    } catch (error) {
-        console.error('Workout sync error:', error)
-        return { success: false, error: error.message }
-    }
-}
-
-export async function fetchGymWorkouts() {
-    if (!isSyncEnabled()) return { success: false, message: 'Offline or not authenticated' }
-
-    try {
-        const userId = getUserId()
-        const workoutsRef = collection(db, 'users', userId, 'workouts')
-        const q = query(workoutsRef, orderBy('date', 'desc'))
-        const snapshot = await getDocs(q)
-
-        const workouts = []
-        snapshot.forEach((doc) => {
-            workouts.push(doc.data())
-        })
-
-        return { success: true, data: workouts }
-    } catch (error) {
-        console.error('Fetch workouts error:', error)
-        return { success: false, error: error.message }
-    }
-}
-
-// ============================================
-// CUSTOM TEMPLATES SYNC
-// ============================================
-
-export async function syncCustomTemplates(templates) {
-    if (!isSyncEnabled()) return { success: false, message: 'Offline or not authenticated' }
-
-    try {
-        const userId = getUserId()
-        const templatesRef = doc(db, 'users', userId, 'profile', 'customTemplates')
-
-        if (!templates) {
-            await deleteDoc(templatesRef)
-            return { success: true }
-        }
-
-        await setDoc(templatesRef, {
-            data: templates,
-            synced: true,
-            syncedAt: new Date().toISOString()
-        })
-
-        return { success: true }
-    } catch (error) {
-        console.error('Custom template sync error:', error)
-        return { success: false, error: error.message }
-    }
-}
-
-export async function fetchCustomTemplates() {
-    if (!isSyncEnabled()) return { success: false, message: 'Offline or not authenticated' }
-
-    try {
-        const userId = getUserId()
-        const templatesRef = doc(db, 'users', userId, 'profile', 'customTemplates')
-        const snapshot = await getDoc(templatesRef)
-
-        if (snapshot.exists()) {
-            return { success: true, data: snapshot.data().data }
-        }
-        return { success: true, data: null }
-    } catch (error) {
-        console.error('Fetch custom templates error:', error)
-        return { success: false, error: error.message }
-    }
-}
-
-// ============================================
-// WEIGHT LOG SYNC
-// ============================================
-
-export async function syncWeightLog(weightEntries) {
-    if (!isSyncEnabled()) return { success: false, message: 'Offline or not authenticated' }
-
-    try {
-        const userId = getUserId()
-        const weightRef = collection(db, 'users', userId, 'weight')
-
-        const promises = weightEntries.map(async (entry) => {
-            // Use ISO date as ID for weight entries since we only have one per day
-            const docRef = doc(weightRef, entry.date)
-            await setDoc(docRef, {
-                ...entry,
-                synced: true,
-                syncedAt: new Date().toISOString()
-            })
-        })
-
-        await Promise.all(promises)
-        return { success: true, count: weightEntries.length }
-    } catch (error) {
-        console.error('Weight sync error:', error)
-        return { success: false, error: error.message }
-    }
-}
-
-export async function fetchWeightLog() {
-    if (!isSyncEnabled()) return { success: false, message: 'Offline or not authenticated' }
-
-    try {
-        const userId = getUserId()
-        const weightRef = collection(db, 'users', userId, 'weight')
-        const q = query(weightRef, orderBy('date', 'desc'))
-        const snapshot = await getDocs(q)
-
-        const weightLog = []
-        snapshot.forEach((doc) => {
-            weightLog.push(doc.data())
-        })
-
-        return { success: true, data: weightLog }
-    } catch (error) {
-        console.error('Fetch weight error:', error)
-        return { success: false, error: error.message }
-    }
-}
-
-// ============================================
-// FLUID INTAKE SYNC
-// ============================================
-
-export async function syncFluidLog(fluidLog) {
-    if (!isSyncEnabled()) return { success: false, message: 'Offline or not authenticated' }
-
-    try {
-        const userId = getUserId()
-        const fluidRef = collection(db, 'users', userId, 'fluid')
-
-        // fluidLog is a flat object { [isoDate]: liters }
-        const promises = Object.entries(fluidLog).map(async ([date, volume]) => {
-            const docRef = doc(fluidRef, date)
-            await setDoc(docRef, {
-                date,
-                volume,
-                synced: true,
-                syncedAt: new Date().toISOString()
-            })
-        })
-
-        await Promise.all(promises)
-        return { success: true, count: Object.keys(fluidLog).length }
-    } catch (error) {
-        console.error('Fluid sync error:', error)
-        return { success: false, error: error.message }
-    }
-}
-
-export async function fetchFluidLog() {
-    if (!isSyncEnabled()) return { success: false, message: 'Offline or not authenticated' }
-
-    try {
-        const userId = getUserId()
-        const fluidRef = collection(db, 'users', userId, 'fluid')
-        const snapshot = await getDocs(fluidRef)
-
-        const fluidLog = {}
-        snapshot.forEach((doc) => {
-            const data = doc.data()
-            fluidLog[data.date] = data.volume
-        })
-
-        return { success: true, data: fluidLog }
-    } catch (error) {
-        console.error('Fetch fluid error:', error)
-        return { success: false, error: error.message }
-    }
-}
-
-// ============================================
-// INITIAL SYNC (UPLOAD EXISTING DATA)
-// ============================================
-
-export async function performInitialSync() {
-    if (!isSyncEnabled()) {
-        return {
-            success: false,
-            message: 'Cannot sync: offline or not authenticated'
-        }
-    }
-
-    try {
-        // Check if already synced
-        const userId = getUserId()
-        const profileRef = doc(db, 'users', userId, 'profile', 'metadata')
-        const profileDoc = await getDoc(profileRef)
-
-        if (profileDoc.exists() && profileDoc.data().initialSyncDone) {
-            return {
-                success: true,
-                message: 'Already synced',
-                alreadySynced: true
-            }
-        }
-
-        // Get data from localStorage
-        const transactions = JSON.parse(localStorage.getItem('zt.transactions') || '[]')
-        const workouts = JSON.parse(localStorage.getItem('zt.gym.workouts') || '[]')
-        const weightLog = JSON.parse(localStorage.getItem('zt.weight.log') || '[]')
-        const fluidLog = JSON.parse(localStorage.getItem('zt.fluid.log') || '{}')
-        const customTemplates = JSON.parse(localStorage.getItem('zt.gym.customTemplates') || 'null')
-
-        // Sync all data
-        const results = await Promise.all([
-            syncBudgetTransactions(transactions),
-            syncGymWorkouts(workouts),
-            syncWeightLog(weightLog),
-            syncFluidLog(fluidLog),
-            syncCustomTemplates(customTemplates)
-        ])
-
-        // Mark initial sync as done
-        await setDoc(profileRef, {
-            initialSyncDone: true,
-            syncedAt: new Date().toISOString(),
-            budgetCount: transactions.length,
-            workoutCount: workouts.length,
-            weightCount: weightLog.length,
-            fluidCount: Object.keys(fluidLog).length
-        })
-
-        return {
-            success: true,
-            message: `Synced ${transactions.length} transactions, ${workouts.length} workouts, ${weightLog.length} weight entries`,
-            budgetCount: transactions.length,
-            workoutCount: workouts.length
-        }
-    } catch (error) {
-        console.error('Initial sync error:', error)
-        return {
-            success: false,
-            message: `Sync failed: ${error.message}`
-        }
-    }
-}
-
-// ============================================
-// MANUAL SYNC ALL
-// ============================================
 
 export async function syncAll() {
-    if (!isSyncEnabled()) {
-        return { success: false, message: 'Offline or not authenticated' }
-    }
+    if (!isSyncEnabled()) return { success: false, message: 'Offline or not authenticated' }
 
     try {
-        const transactions = JSON.parse(localStorage.getItem('zt.transactions') || '[]')
-        const workouts = JSON.parse(localStorage.getItem('zt.gym.workouts') || '[]')
-        const weightLog = JSON.parse(localStorage.getItem('zt.weight.log') || '[]')
-        const fluidLog = JSON.parse(localStorage.getItem('zt.fluid.log') || '{}')
-        const customTemplates = JSON.parse(localStorage.getItem('zt.gym.customTemplates') || 'null')
+        const foodLog = readLocal(LS_KEYS.foodLog, [])
+        const activityLog = readLocal(LS_KEYS.activityLog, [])
+        const weightLog = readLocal(LS_KEYS.weightLog, [])
+        const customFoods = readLocal(LS_KEYS.customFoods, {})
 
         await Promise.all([
-            syncBudgetTransactions(transactions),
-            syncGymWorkouts(workouts),
-            syncWeightLog(weightLog),
-            syncFluidLog(fluidLog),
-            syncCustomTemplates(customTemplates)
+            syncCollection('foodLog', foodLog, (e) => e.id),
+            syncCollection('activityLog', activityLog, (e) => e.id),
+            syncCollection('weightLog', weightLog, (e) => e.date),
+            syncCollection('customFoods', Object.entries(customFoods).map(([id, f]) => ({ id, ...f })), (e) => e.id),
         ])
 
-        return {
-            success: true,
-            message: 'All features synced to cloud'
-        }
+        return { success: true, message: 'All data synced to cloud' }
     } catch (error) {
         console.error('Sync all error:', error)
         return { success: false, message: error.message }
     }
 }
 
-// ============================================
-// FETCH ALL (DOWNLOAD FROM CLOUD)
-// ============================================
-
 export async function fetchAll() {
-    if (!isSyncEnabled()) {
-        return { success: false, message: 'Offline or not authenticated' }
-    }
+    if (!isSyncEnabled()) return { success: false, message: 'Offline or not authenticated' }
 
     try {
-        const [budgetResult, workoutsResult, weightResult, fluidResult, templatesResult] = await Promise.all([
-            fetchBudgetTransactions(),
-            fetchGymWorkouts(),
-            fetchWeightLog(),
-            fetchFluidLog(),
-            fetchCustomTemplates()
+        const [foodResult, activityResult, weightResult, customFoodsResult] = await Promise.all([
+            fetchCollection('foodLog'),
+            fetchCollection('activityLog'),
+            fetchCollection('weightLog'),
+            fetchCollection('customFoods', 'date'),
         ])
 
-        if (budgetResult.success && budgetResult.data.length > 0) {
-            localStorage.setItem('zt.transactions', JSON.stringify(budgetResult.data))
+        if (foodResult.success && foodResult.data.length > 0) {
+            localStorage.setItem(LS_KEYS.foodLog, JSON.stringify(foodResult.data))
         }
-
-        if (workoutsResult.success && workoutsResult.data.length > 0) {
-            localStorage.setItem('zt.gym.workouts', JSON.stringify(workoutsResult.data))
+        if (activityResult.success && activityResult.data.length > 0) {
+            localStorage.setItem(LS_KEYS.activityLog, JSON.stringify(activityResult.data))
         }
-
         if (weightResult.success && weightResult.data.length > 0) {
-            localStorage.setItem('zt.weight.log', JSON.stringify(weightResult.data))
+            localStorage.setItem(LS_KEYS.weightLog, JSON.stringify(weightResult.data))
         }
-
-        if (fluidResult.success && Object.keys(fluidResult.data).length > 0) {
-            localStorage.setItem('zt.fluid.log', JSON.stringify(fluidResult.data))
-        }
-
-        if (templatesResult.success && templatesResult.data) {
-            localStorage.setItem('zt.gym.customTemplates', JSON.stringify(templatesResult.data))
+        if (customFoodsResult.success && customFoodsResult.data.length > 0) {
+            const obj = {}
+            customFoodsResult.data.forEach(({ id, ...rest }) => { obj[id] = rest })
+            localStorage.setItem(LS_KEYS.customFoods, JSON.stringify(obj))
         }
 
         return {
             success: true,
-            message: 'Data fetched from cloud',
-            budgetCount: budgetResult.data?.length || 0,
-            workoutCount: workoutsResult.data?.length || 0
+            message: `Fetched ${foodResult.data.length} food entries, ${activityResult.data.length} activities, ${weightResult.data.length} weigh-ins`,
         }
     } catch (error) {
         console.error('Fetch all error:', error)
         return { success: false, message: error.message }
+    }
+}
+
+export async function performInitialSync() {
+    if (!isSyncEnabled()) return { success: false, message: 'Cannot sync: offline or not authenticated' }
+
+    try {
+        const userId = getUserId()
+        const profileRef = doc(db, 'users', userId, 'profile', 'metadata')
+        const profileDoc = await getDoc(profileRef)
+
+        if (profileDoc.exists() && profileDoc.data().initialSyncDone) {
+            return { success: true, message: 'Already synced', alreadySynced: true }
+        }
+
+        const result = await syncAll()
+
+        await setDoc(profileRef, {
+            initialSyncDone: true,
+            syncedAt: new Date().toISOString(),
+        })
+
+        return { ...result, alreadySynced: false }
+    } catch (error) {
+        console.error('Initial sync error:', error)
+        return { success: false, message: `Sync failed: ${error.message}` }
     }
 }

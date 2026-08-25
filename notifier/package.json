@@ -1,0 +1,13 @@
+{
+  "name": "caltrack-notifier",
+  "description": "Free scheduled job (run by GitHub Actions) that sends real push notifications for CalTrack meal reminders. Optional — the app works fully without this deployed.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node send-reminders.js"
+  },
+  "dependencies": {
+    "firebase-admin": "^12.7.0",
+    "web-push": "^3.6.7"
+  }
+}

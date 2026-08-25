@@ -1,1599 +1,431 @@
-import { useEffect, useMemo, useState, useRef, useCallback } from 'react'
-import { ArrowLeftRight, CalendarClock, Dumbbell, Camera, TrendingUp, Plus, X, Image as ImageIcon, History, Trash2, Timer, Flame, BarChart2, ChevronDown, ChevronUp, Scale, Droplet } from 'lucide-react'
-
-function startOfToday() {
-  const now = new Date()
-  return new Date(now.getFullYear(), now.getMonth(), now.getDate())
-}
-
-function toISODate(d) {
-  const yyyy = d.getFullYear()
-  const mm = String(d.getMonth() + 1).padStart(2, '0')
-  const dd = String(d.getDate()).padStart(2, '0')
-  return `${yyyy}-${mm}-${dd}`
-}
-
-function parseISODate(iso) {
-  const [y, m, d] = iso.split('-').map(Number)
-  if (!y || !m || !d) return null
-  return new Date(y, m - 1, d)
-}
-
-function dayDiff(aISO, bISO) {
-  const a = parseISODate(aISO)
-  const b = parseISODate(bISO)
-  if (!a || !b) return 0
-  const a0 = new Date(a.getFullYear(), a.getMonth(), a.getDate()).getTime()
-  const b0 = new Date(b.getFullYear(), b.getMonth(), b.getDate()).getTime()
-  return Math.floor((b0 - a0) / 86400000)
-}
+import { useEffect, useMemo, useState } from 'react'
+import { Dumbbell, Plus, Trash2, X, Calendar, Pencil, Flame, History as HistoryIcon } from 'lucide-react'
+import { gymTemplates, blankTemplate } from '../config/gymTemplates'
+import { todayISO, formatDateLabel } from '../utils/dates'
+import { estimateActivityCalories } from '../utils/nutrition'
+import { generateId } from '../utils/id'
 
 function useLocalStorageState(key, initialValue) {
-  const [value, setValue] = useState(() => {
-    try {
-      const raw = localStorage.getItem(key)
-      if (raw == null) return initialValue
-      return JSON.parse(raw)
-    } catch {
-      return initialValue
-    }
-  })
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(key, JSON.stringify(value))
-    } catch {
-      // ignore
-    }
-  }, [key, value])
-
-  return [value, setValue]
-}
-
-// ─── Rest Timer Component ───────────────────────────────────────────────────
-function RestTimer({ onDismiss }) {
-  const [duration, setDuration] = useState(null) // null = not started
-  const [remaining, setRemaining] = useState(0)
-  const intervalRef = useRef(null)
-
-  function startTimer(secs) {
-    clearInterval(intervalRef.current)
-    setDuration(secs)
-    setRemaining(secs)
-  }
-
-  useEffect(() => {
-    if (remaining <= 0 || duration === null) return
-    intervalRef.current = setInterval(() => {
-      setRemaining(prev => {
-        if (prev <= 1) {
-          clearInterval(intervalRef.current)
-          // Vibrate on finish
-          if (navigator.vibrate) navigator.vibrate([300, 100, 300])
-          // Beep via Web Audio
-          try {
-            const ctx = new (window.AudioContext || window.webkitAudioContext)()
-            const osc = ctx.createOscillator()
-            const gain = ctx.createGain()
-            osc.connect(gain)
-            gain.connect(ctx.destination)
-            osc.frequency.value = 880
-            gain.gain.setValueAtTime(0.3, ctx.currentTime)
-            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.6)
-            osc.start(ctx.currentTime)
-            osc.stop(ctx.currentTime + 0.6)
-          } catch (_) { }
-          return 0
+    const [value, setValue] = useState(() => {
+        try {
+            const raw = localStorage.getItem(key)
+            return raw == null ? initialValue : JSON.parse(raw)
+        } catch {
+            return initialValue
         }
-        return prev - 1
-      })
-    }, 1000)
-    return () => clearInterval(intervalRef.current)
-  }, [remaining, duration])
-
-  const progress = duration ? (remaining / duration) : 0
-  const circumference = 2 * Math.PI * 20
-  const strokeDash = circumference * progress
-
-  const mins = Math.floor(remaining / 60)
-  const secs = remaining % 60
-
-  return (
-    <div className="fixed bottom-20 left-1/2 z-40 w-full max-w-md -translate-x-1/2 px-4">
-      <div className="rounded-2xl border border-amber-500/30 bg-slate-950/95 p-4 shadow-2xl backdrop-blur">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <Timer className="h-4 w-4 text-amber-400" />
-            <span className="text-xs font-semibold uppercase tracking-wide text-amber-400">Rest Timer</span>
-          </div>
-          <button type="button" onClick={onDismiss} className="rounded-lg p-1 text-slate-400 hover:bg-slate-800">
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-
-        {duration === null ? (
-          <div className="mt-3 flex gap-2">
-            {[60, 90, 120].map(s => (
-              <button
-                key={s}
-                type="button"
-                onClick={() => startTimer(s)}
-                className="flex-1 rounded-xl border border-amber-500/30 bg-amber-950/20 py-2.5 text-sm font-extrabold text-amber-300 hover:bg-amber-950/40"
-              >
-                {s}s
-              </button>
-            ))}
-          </div>
-        ) : (
-          <div className="mt-3 flex items-center gap-4">
-            <svg width="52" height="52" viewBox="0 0 52 52">
-              <circle cx="26" cy="26" r="20" fill="none" stroke="#1e293b" strokeWidth="4" />
-              <circle
-                cx="26" cy="26" r="20" fill="none"
-                stroke={remaining === 0 ? '#22c55e' : '#f59e0b'}
-                strokeWidth="4"
-                strokeDasharray={`${strokeDash} ${circumference}`}
-                strokeLinecap="round"
-                transform="rotate(-90 26 26)"
-                style={{ transition: 'stroke-dasharray 0.9s linear' }}
-              />
-            </svg>
-            <div className="flex-1">
-              <div className={`text-2xl font-extrabold ${remaining === 0 ? 'text-emerald-400' : 'text-slate-50'}`}>
-                {remaining === 0 ? '✓ Done!' : `${mins}:${String(secs).padStart(2, '0')}`}
-              </div>
-              <div className="text-xs text-slate-500">{duration}s rest</div>
-            </div>
-            <div className="flex gap-2">
-              {[60, 90, 120].map(s => (
-                <button
-                  key={s}
-                  type="button"
-                  onClick={() => startTimer(s)}
-                  className={`rounded-lg px-2 py-1 text-xs font-bold ${duration === s && remaining > 0 ? 'bg-amber-500/20 text-amber-300' : 'text-slate-500 hover:text-slate-300'}`}
-                >
-                  {s}s
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  )
+    })
+    useEffect(() => {
+        try { localStorage.setItem(key, JSON.stringify(value)) } catch { /* ignore */ }
+    }, [key, value])
+    return [value, setValue]
 }
 
-// ─── Volume Chart Component ─────────────────────────────────────────────────
-function VolumeChart({ workouts }) {
-  const weeks = useMemo(() => {
-    const today = startOfToday()
-    const result = []
-    for (let w = 3; w >= 0; w--) {
-      const weekStart = new Date(today)
-      weekStart.setDate(today.getDate() - today.getDay() - w * 7)
-      const weekEnd = new Date(weekStart)
-      weekEnd.setDate(weekStart.getDate() + 6)
-      const label = weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-      const volume = workouts
-        .filter(wo => {
-          const d = parseISODate(wo.date)
-          return d && d >= weekStart && d <= weekEnd
+export default function Gym({ onToast }) {
+    const today = todayISO()
+
+    const [templateChoice, setTemplateChoice] = useLocalStorageState('ct.gym.templateChoice', 'ppl')
+    const [customTemplate, setCustomTemplate] = useLocalStorageState('ct.gym.customTemplate', blankTemplate())
+    const [workouts, setWorkouts] = useLocalStorageState('ct.gym.workouts', [])
+    const [, setActivityLog] = useLocalStorageState('ct.activityLog', [])
+
+    const [selectedDate, setSelectedDate] = useState(today)
+    const [editingTemplate, setEditingTemplate] = useState(false)
+    const [newExerciseName, setNewExerciseName] = useState('')
+    const [burnedInput, setBurnedInput] = useState('')
+
+    const activeTemplate = templateChoice === 'custom' ? customTemplate : gymTemplates[templateChoice]
+
+    const session = useMemo(() => workouts.find((w) => w.date === selectedDate), [workouts, selectedDate])
+
+    function upsertSession(updater) {
+        setWorkouts((prev) => {
+            const idx = prev.findIndex((w) => w.date === selectedDate)
+            if (idx === -1) {
+                const fresh = updater({ id: generateId('workout'), date: selectedDate, dayId: null, dayLabel: null, exercises: [] })
+                return [...prev, fresh]
+            }
+            const next = [...prev]
+            next[idx] = updater(next[idx])
+            return next
         })
-        .reduce((sum, wo) => {
-          return sum + (wo.exercises || []).reduce((s2, ex) => {
-            return s2 + (ex.sets || []).reduce((s3, set) => s3 + (Number(set.weight) || 0) * (Number(set.reps) || 0), 0)
-          }, 0)
-        }, 0)
-      result.push({ label, volume })
-    }
-    return result
-  }, [workouts])
-
-  const maxVol = Math.max(...weeks.map(w => w.volume), 1)
-  const totalThisWeek = weeks[3]?.volume || 0
-  const totalLastWeek = weeks[2]?.volume || 0
-  const change = totalLastWeek > 0 ? Math.round(((totalThisWeek - totalLastWeek) / totalLastWeek) * 100) : null
-
-  const isPlateau = totalLastWeek > 0 && totalThisWeek > 0 && totalThisWeek <= totalLastWeek
-
-  return (
-    <div className="mt-4">
-      <div className="flex items-center justify-between">
-        <div className="text-xs font-semibold text-slate-400">4-WEEK VOLUME TREND</div>
-        {change !== null && (
-          <div className={`text-xs font-bold ${change >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-            {change >= 0 ? '↑' : '↓'} {Math.abs(change)}% vs last week
-          </div>
-        )}
-      </div>
-
-      {isPlateau && (
-        <div className="mt-3 rounded-xl border border-red-500/50 bg-red-950/30 px-3 py-2">
-          <div className="flex items-center gap-1.5 text-xs font-extrabold text-red-500">
-            <TrendingUp className="h-4 w-4" />
-            ML Plateau Alert
-          </div>
-          <div className="mt-1 text-xs font-medium text-red-200/80">
-            Volume is stalling. You are just going through the motions. Your "Armor" is no longer growing. Force the body to change.
-          </div>
-        </div>
-      )}
-
-      <div className="mt-3 flex items-end gap-2 h-24">
-        {weeks.map((w, i) => {
-          const heightPct = maxVol > 0 ? Math.max((w.volume / maxVol) * 100, w.volume > 0 ? 8 : 2) : 2
-          const isThisWeek = i === 3
-          // Stagnant week gets colored red if plateauing
-          const barColor = isThisWeek && isPlateau ? 'bg-red-500' : isThisWeek ? 'bg-emerald-500' : 'bg-slate-700'
-          return (
-            <div key={i} className="flex flex-1 flex-col items-center gap-1">
-              <div className="text-[9px] font-bold text-slate-500">
-                {w.volume > 0 ? `${(w.volume / 1000).toFixed(1)}k` : '—'}
-              </div>
-              <div className="flex w-full flex-1 items-end">
-                <div
-                  className={`w-full rounded-t-lg transition-all ${barColor}`}
-                  style={{ height: `${heightPct}%` }}
-                />
-              </div>
-              <div className="text-[9px] text-slate-500 text-center leading-tight">{w.label}</div>
-            </div>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
-
-// ─── Workout Templates ──────────────────────────────────────────────────────
-const workoutTemplates = {
-  ppl: {
-    name: 'Push/Pull/Legs',
-    description: '6-day aesthetic split',
-    split: [
-      { key: 'push', title: 'Push Day', focus: 'Width and upper-body thickness' },
-      { key: 'pull', title: 'Pull Day', focus: 'The "V" width and arm peak' },
-      { key: 'legs', title: 'Leg Day', focus: 'Power and core stability' },
-    ],
-    exercises: {
-      push: [
-        { name: 'Shoulder Press (Dumbbell/Machine)', target: '12.5kg+', reps: '3-4 sets', note: '🔥 The V-Taper King' },
-        { name: 'Incline Chest Press', target: '7.5kg - 12.5kg', reps: '3-4 sets', note: 'Builds the "upper shelf"' },
-        { name: 'Chest Press (Flat/Machine)', target: 'Progressive', reps: '3 sets' },
-        { name: 'Lateral Raises', target: '22lb - 33lb', reps: '3-4 sets', note: '🔥 Makes you "wide"' },
-        { name: 'Tricep Dips (Machine)', target: '93lb - 104lb', reps: '3 sets' },
-        { name: 'Tricep Pushdowns (Cables)', target: 'Progressive', reps: '3 sets' },
-        { name: 'Cardio', target: '128 Calories', reps: '12% Incline', note: '🔥 Don\'t skip cardio!' },
-      ],
-      pull: [
-        { name: 'Lat Pulldowns', target: 'Progressive', reps: '3-4 sets', note: '🔥 Widens the back, makes waist look smaller' },
-        { name: 'Seated Cable Rows', target: 'Progressive', reps: '3 sets', note: 'Adds thickness to middle back' },
-        { name: 'Face Pulls', target: 'Light-Medium', reps: '3 sets', note: 'Rear delts for 3D shoulder look' },
-        { name: 'Bicep Curls (Dumbbell/Ez-Bar)', target: 'Progressive', reps: '3 sets' },
-        { name: 'Hammer Curls', target: 'Progressive', reps: '3 sets', note: 'For forearm and bicep thickness' },
-        { name: 'Cardio', target: '128 Calories', reps: '12% Incline', note: '🔥 Don\'t skip cardio!' },
-      ],
-      legs: [
-        { name: 'Leg Press', target: '54kg+', reps: '3-4 sets', note: '🔥 Build powerful legs!' },
-        { name: 'Leg Extensions', target: 'Progressive', reps: '3 sets' },
-        { name: 'Leg Curls', target: 'Progressive', reps: '3 sets' },
-        { name: 'Plank', target: 'Bodyweight', reps: '3 sets × 60s+', note: '🔥 Keeps the stomach tight' },
-        { name: 'Cardio', target: '128 Calories', reps: '12% Incline', note: '🔥 Don\'t skip cardio!' },
-      ],
-    },
-  },
-  protocol90: {
-    name: 'Protocol 90',
-    description: '5-day high intensity',
-    split: [
-      { key: 'upper1', title: 'Upper 1 (Heavy Freeweight)', focus: 'Heavy pressing & pulling' },
-      { key: 'lower1', title: 'Lower 1 (Heavy Power)', focus: 'Heavy compound leg strength' },
-      { key: 'aesthetics', title: 'Aesthetics & The Truth Burn', focus: 'Light day – Shoulders, Arms & Cardio' },
-      { key: 'upper2', title: 'Upper 2 (Machine & Volume)', focus: 'Hypertrophy & Pump' },
-      { key: 'lower2', title: 'Lower 2 (Volume Legs)', focus: 'Leg volume & Core' },
-      { key: 'rest1', title: 'Active Rest', focus: 'Cardio only - recovery day' },
-      { key: 'rest2', title: 'Active Rest', focus: 'Cardio only - recovery day' },
-    ],
-    exercises: {
-      upper1: [
-        { name: 'Incline Dumbbell Press', target: '17.5kg', reps: '3 sets', note: '🔥 Then 3 back-off sets at 15kg' },
-        { name: 'Lat Pulldowns', target: 'Heavy', reps: '3 sets' },
-        { name: 'Seated Cable Rows', target: 'Heavy', reps: '3 sets' },
-        { name: 'Seated DB Shoulder Press', target: 'Progressive', reps: '3 sets' },
-        { name: 'DB Lateral Raises', target: '10-12 reps', reps: '3 sets', note: '🔥 Strict form, no swing' },
-        { name: 'Tricep Pushdowns', target: 'Progressive', reps: '3 sets', note: 'Moved to end so arms are fresh for presses' },
-        { name: 'Cardio', target: '15% Incline Walk', reps: '~150 cal', note: '🔥 Don\'t skip cardio!' },
-      ],
-      lower1: [
-        { name: 'Leg Press', target: '120kg', reps: '3 sets', note: '🔥 Heavy compound power' },
-        { name: 'Leg Extensions', target: 'Progressive', reps: '3 sets' },
-        { name: 'Seated Hamstring Curls', target: 'Progressive', reps: '3 sets' },
-        { name: 'Calf Raises', target: 'Full range', reps: '3 sets' },
-        { name: 'Weighted Cable Crunches', target: '10-15 reps', reps: '3 sets', note: '🔥 Squeeze hard – build the 4-pack bricks' },
-        { name: 'Hanging or Lying Leg Raises', target: 'Failure', reps: '3 sets', note: 'Go to failure every set' },
-        { name: 'Cardio', target: '15% Incline Walk', reps: '~150 cal', note: '🔥 Don\'t skip cardio!' },
-      ],
-      aesthetics: [
-        { name: 'DB Lateral Raises', target: 'Progressive', reps: '3 sets', note: '🔥 Light day – strict form' },
-        { name: 'Lat Pulldowns', target: 'Progressive', reps: '3 sets' },
-        { name: 'Hammer Curls', target: 'Progressive', reps: '3 sets' },
-        { name: 'Face Pulls', target: 'Rear Delts', reps: '3 sets', note: 'Fixes posture & makes chest look wider' },
-        { name: 'Skull Crushers', target: 'Progressive', reps: '3 sets' },
-        { name: 'The "Truth" Run', target: '240+ cal', reps: 'Empty the tank', note: '🔥 MAX EFFORT. Don\'t stop.' },
-      ],
-      upper2: [
-        { name: 'Incline Machine Press', target: 'Heavy', reps: '3 sets', note: '🔥 Drop set on the LAST set only' },
-        { name: 'Machine Rows', target: '50kg', reps: '3 sets' },
-        { name: 'Pec Fly Machine', target: 'Squeeze', reps: '3 sets', note: 'Focus on the squeeze' },
-        { name: 'Rear Delt Machine', target: 'Rear Delts', reps: '3 sets' },
-        { name: 'Triceps', target: 'Progressive', reps: '3 sets' },
-        { name: 'Machine Preacher Curls', target: 'Biceps', reps: '3 sets' },
-        { name: 'DB Lateral Raises', target: 'Progressive', reps: '3 sets' },
-        { name: 'Cardio', target: '15% Incline Walk', reps: '~150 cal', note: '🔥 Don\'t skip cardio!' },
-      ],
-      lower2: [
-        { name: 'Leg Extensions', target: 'Progressive', reps: '3 sets' },
-        { name: 'Leg Press', target: '100kg+', reps: '3 sets', note: '🔥 Push over 100kg to force growth hormone release' },
-        { name: 'Calf Raises', target: 'Full range', reps: '3 sets' },
-        { name: 'Weighted Cable Crunches', target: 'Progressive', reps: '3 sets' },
-        { name: 'Hanging or Lying Leg Raises', target: 'Failure', reps: '3 sets' },
-        { name: 'Cardio', target: '15% Incline Walk', reps: '~150 cal', note: '🔥 Don\'t skip cardio!' },
-      ],
-      rest1: [
-        { name: 'Active Recovery Walk', target: 'Light Cardio', reps: '30 Mins', note: '🧘 Get moving, but recover.' },
-      ],
-      rest2: [
-        { name: 'Active Recovery Walk', target: 'Light Cardio', reps: '30 Mins', note: '🧘 Get moving, but recover.' },
-      ],
-    },
-  },
-  custom: {
-    name: 'My Custom Routine',
-    description: 'Build your own custom split from scratch',
-    split: [
-      { key: 'day1', title: 'Day 1', focus: 'Legs/Lower' },
-      { key: 'day2', title: 'Day 2', focus: 'Push/Chest' },
-      { key: 'day3', title: 'Day 3', focus: 'Pull/Back' },
-      { key: 'day4', title: 'Day 4', focus: 'Arms/Accessories' },
-      { key: 'rest', title: 'Rest/Cardio', focus: 'Recovery' },
-    ],
-    exercises: {
-      day1: [],
-      day2: [],
-      day3: [],
-      day4: [],
-      rest: [],
-    },
-  },
-}
-
-// Legacy references for backward compatibility
-const split = workoutTemplates.ppl.split
-const exercises = workoutTemplates.ppl.exercises
-
-// ─── Progressive Overload Helper ────────────────────────────────────────────
-function getOverloadSuggestion(exerciseName, workouts) {
-  // Get the last N sessions where this exercise was logged
-  const sessions = workouts
-    .filter(w => w.exercises?.some(e => e.name === exerciseName))
-    .sort((a, b) => new Date(b.date) - new Date(a.date))
-    .slice(0, 2)
-
-  if (sessions.length < 2) return null
-
-  // Check if both sessions hit >= 8 reps on at least 2 sets
-  const allHitTarget = sessions.every(session => {
-    const ex = session.exercises.find(e => e.name === exerciseName)
-    if (!ex?.sets?.length) return false
-    const goodSets = ex.sets.filter(s => Number(s.reps) >= 8)
-    return goodSets.length >= 2
-  })
-
-  if (!allHitTarget) return null
-
-  // Get current weight from latest session
-  const latestEx = sessions[0].exercises.find(e => e.name === exerciseName)
-  const currentWeight = Math.max(...latestEx.sets.map(s => Number(s.weight) || 0))
-  if (currentWeight <= 0) return null
-
-  return { currentWeight, suggestedWeight: currentWeight + 2.5 }
-}
-
-// ─── ML Feature: Coasting Alert ──────────────────────────────────────────────
-function getCoastingAlert(exerciseName, workouts) {
-  const sessions = workouts
-    .filter(w => w.exercises?.some(e => e.name === exerciseName))
-    .sort((a, b) => new Date(b.date) - new Date(a.date))
-    .slice(0, 2)
-
-  // Needs at least 2 past sessions to detect coasting
-  if (sessions.length < 2) return null
-
-  // Check if BOTH past sessions had an average RPE <= 7
-  const bothCoasting = sessions.every(session => {
-    const ex = session.exercises.find(e => e.name === exerciseName)
-    if (!ex?.sets?.length) return false
-
-    const validSets = ex.sets.filter(s => s.rpe && Number(s.rpe) > 0)
-    if (validSets.length === 0) return false
-
-    const avgRpe = validSets.reduce((acc, s) => acc + Number(s.rpe), 0) / validSets.length
-    return avgRpe <= 7
-  })
-
-  if (!bothCoasting) return null
-
-  // Check if weight stayed the same across both sessions
-  const latestEx = sessions[0].exercises.find(e => e.name === exerciseName)
-  const prevEx = sessions[1].exercises.find(e => e.name === exerciseName)
-
-  const latestMaxWeight = Math.max(...latestEx.sets.map(s => Number(s.weight) || 0))
-  const prevMaxWeight = Math.max(...prevEx.sets.map(s => Number(s.weight) || 0))
-
-  if (latestMaxWeight <= 0 || latestMaxWeight > prevMaxWeight) return null
-
-  return true
-}
-
-// ─── ML Feature: Trend Weight Helper ─────────────────────────────────────────
-function computeTrendWeight(weightLog, dateISO) {
-  if (!weightLog || weightLog.length === 0) return null
-
-  // Find the exact date or the closest date prior to it
-  const pastEntries = weightLog
-    .filter(e => e.date <= dateISO)
-    .sort((a, b) => b.date.localeCompare(a.date))
-
-  if (pastEntries.length === 0) return null
-
-  const targetDateObj = new Date(dateISO)
-  // Get entries within 7 days of the target date prior
-  const sevenDaysAgo = new Date(targetDateObj)
-  sevenDaysAgo.setDate(targetDateObj.getDate() - 7)
-  const sevenDaysAgoISO = toISODate(sevenDaysAgo)
-
-  const recentWindow = pastEntries.filter(e => e.date >= sevenDaysAgoISO)
-
-  // If no weights in the 7 day window, just return the most recent known weight
-  if (recentWindow.length === 0) return pastEntries[0].weight
-
-  // Calculate average
-  const sum = recentWindow.reduce((acc, curr) => acc + curr.weight, 0)
-  return (sum / recentWindow.length).toFixed(1)
-}
-
-export default function Gym() {
-  const todayISO = toISODate(startOfToday())
-  const [selectedTemplate, setSelectedTemplate] = useLocalStorageState('zt.gym.template', 'ppl')
-  const [targetWeight, setTargetWeight] = useLocalStorageState('zt.targetGoalWeight', 72.0)
-  const [targetGoalDate, setTargetGoalDate] = useLocalStorageState('zt.targetGoalDate', '2026-05-23')
-  const [anchorDate, setAnchorDate] = useLocalStorageState('zt.gym.anchorDate', todayISO)
-  const [anchorIndex, setAnchorIndex] = useLocalStorageState('zt.gym.anchorIndex', 0)
-  const [workouts, setWorkouts] = useLocalStorageState('zt.gym.workouts', [])
-  const [photos, setPhotos] = useLocalStorageState('zt.gym.photos', [])
-  const [streak, setStreak] = useLocalStorageState('zt.gym.streak', { lastDate: null, count: 0 })
-  const [weightLog, setWeightLog] = useLocalStorageState('zt.weight.log', [])
-  const [fluidLog, setFluidLog] = useLocalStorageState('zt.fluid.log', {})
-  const [weightInput, setWeightInput] = useState('')
-  const [customTemplates, setCustomTemplates] = useLocalStorageState('zt.gym.customTemplates', null)
-
-  const [newTemplateExName, setNewTemplateExName] = useState('')
-  const [newTemplateExSets, setNewTemplateExSets] = useState('')
-  const [newTemplateExReps, setNewTemplateExReps] = useState('')
-
-  const [isEditingGoal, setIsEditingGoal] = useState(false)
-  const [goalInputStr, setGoalInputStr] = useState('')
-
-  const [isEditingDate, setIsEditingDate] = useState(false)
-  const [dateInputStr, setDateInputStr] = useState('')
-
-  const [swapOpen, setSwapOpen] = useState(false)
-  const [didKey, setDidKey] = useState(null)
-  const [logExercise, setLogExercise] = useState(null)
-  const [sets, setSets] = useState([{ weight: '', reps: '', rpe: '' }])
-  const [notes, setNotes] = useState('')
-  const [photoGalleryOpen, setPhotoGalleryOpen] = useState(false)
-  const [customWorkoutOpen, setCustomWorkoutOpen] = useState(false)
-  const [customExerciseName, setCustomExerciseName] = useState('')
-  const [historyOpen, setHistoryOpen] = useState(false)
-  const [showRestTimer, setShowRestTimer] = useState(false)
-  const [showVolumeChart, setShowVolumeChart] = useState(false)
-  const fileInputRef = useRef(null)
-
-  // Merge legacy templates with any custom ones made in onboarding
-  const mergedTemplates = useMemo(() => {
-    return { ...workoutTemplates, ...(customTemplates || {}) }
-  }, [customTemplates])
-
-  // Get current template data
-  const currentTemplate = mergedTemplates[selectedTemplate] || mergedTemplates.ppl
-  const currentSplit = currentTemplate.split
-  const currentExercises = currentTemplate.exercises
-
-  const todayIndex = useMemo(() => {
-    const diff = dayDiff(anchorDate, todayISO)
-    const idx = (((Number(anchorIndex) || 0) + diff) % currentSplit.length + currentSplit.length) % currentSplit.length
-    return idx
-  }, [anchorDate, anchorIndex, todayISO, currentSplit.length])
-
-  const todayWorkout = currentSplit[todayIndex]
-  const todayExercises = currentExercises[todayWorkout.key] || []
-
-  useEffect(() => {
-    setDidKey(todayWorkout.key)
-  }, [todayWorkout.key])
-
-  const { countdown, daysLeftNumber, targetDateFormatted } = useMemo(() => {
-    let d = parseISODate(targetGoalDate)
-    if (!d || isNaN(d.getTime())) {
-      d = new Date('2026-05-23T00:00:00')
-    }
-    const now = new Date()
-    const diff = Math.max(0, d.getTime() - now.getTime())
-    const totalSeconds = Math.floor(diff / 1000)
-    const days = Math.floor(totalSeconds / 86400)
-    const hours = Math.floor((totalSeconds % 86400) / 3600)
-    const mins = Math.floor((totalSeconds % 3600) / 60)
-    return {
-      countdown: { days, hours, mins },
-      daysLeftNumber: days,
-      targetDateFormatted: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-    }
-  }, [targetGoalDate])
-
-  function applySwap() {
-    const desiredIndex = currentSplit.findIndex((s) => s.key === didKey)
-    if (desiredIndex < 0) return
-    const diff = dayDiff(anchorDate, todayISO)
-    const newAnchorIndex = desiredIndex - diff
-    setAnchorIndex(((newAnchorIndex % currentSplit.length) + currentSplit.length) % currentSplit.length)
-    setAnchorDate(todayISO)
-    setSwapOpen(false)
-  }
-
-  function openLogExercise(exercise) {
-    const lastWorkout = workouts
-      .filter((w) => w.exercises?.some((e) => e.name === exercise.name))
-      .sort((a, b) => new Date(b.date) - new Date(a.date))[0]
-
-    const lastExercise = lastWorkout?.exercises?.find((e) => e.name === exercise.name)
-
-    if (lastExercise?.sets?.length > 0) {
-      setSets(lastExercise.sets.map((s) => ({ ...s })))
-    } else {
-      setSets([{ weight: '', reps: '' }])
     }
 
-    setNotes('')
-    setLogExercise(exercise)
-  }
-
-  // ── Update streak ──────────────────────────────────────────────────────────
-  function updateStreak() {
-    const yesterday = toISODate(new Date(startOfToday().getTime() - 86400000))
-    setStreak(prev => {
-      if (prev.lastDate === todayISO) return prev // already counted today
-      if (prev.lastDate === yesterday) return { lastDate: todayISO, count: (prev.count || 0) + 1 }
-      return { lastDate: todayISO, count: 1 }
-    })
-  }
-
-  function saveWorkout() {
-    if (!logExercise) return
-
-    const validSets = sets.filter((s) => s.weight && s.reps)
-    if (validSets.length === 0) return
-
-    const newWorkout = {
-      id: crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`,
-      date: todayISO,
-      dayType: todayWorkout.key,
-      exercises: [
-        {
-          name: logExercise.name,
-          sets: validSets.map((s) => ({ weight: Number(s.weight), reps: Number(s.reps) })),
-          notes: notes.trim() || undefined,
-        },
-      ],
+    function pickDay(day) {
+        upsertSession((s) => {
+            if (s.exercises.length > 0 && s.dayId === day.id) return s // already on this day, no-op
+            const hasData = s.exercises.length > 0
+            return {
+                ...s,
+                dayId: day.id,
+                dayLabel: day.label,
+                // Seed from the template only if nothing has been logged yet for this date.
+                exercises: hasData ? s.exercises : day.exercises.map((ex) => ({ name: ex.name, target: ex.target, reps: ex.reps, sets: [], notes: '' })),
+            }
+        })
     }
 
-    setWorkouts((prev) => [...prev, newWorkout])
-    updateStreak()
-    setLogExercise(null)
-    setSets([{ weight: '', reps: '' }])
-    setNotes('')
-    setShowRestTimer(true) // Show rest timer after saving
-  }
+    function addSet(exerciseName) {
+        upsertSession((s) => ({
+            ...s,
+            exercises: s.exercises.map((ex) => ex.name === exerciseName
+                ? { ...ex, sets: [...ex.sets, { weight: '', reps: '' }] }
+                : ex),
+        }))
+    }
 
-  function openCustomWorkout() {
-    setCustomExerciseName('')
-    setSets([{ weight: '', reps: '' }])
-    setNotes('')
-    setCustomWorkoutOpen(true)
-  }
+    function updateSet(exerciseName, idx, field, value) {
+        upsertSession((s) => ({
+            ...s,
+            exercises: s.exercises.map((ex) => ex.name === exerciseName
+                ? { ...ex, sets: ex.sets.map((set, i) => i === idx ? { ...set, [field]: value } : set) }
+                : ex),
+        }))
+    }
 
-  function addExerciseToCustomTemplate() {
-    if (!newTemplateExName.trim()) return
-    const key = todayWorkout.key
-    const tplKey = selectedTemplate
+    function removeSet(exerciseName, idx) {
+        upsertSession((s) => ({
+            ...s,
+            exercises: s.exercises.map((ex) => ex.name === exerciseName
+                ? { ...ex, sets: ex.sets.filter((_, i) => i !== idx) }
+                : ex),
+        }))
+    }
 
-    setCustomTemplates(prev => {
-      const updated = prev ? JSON.parse(JSON.stringify(prev)) : {}
+    function removeExercise(exerciseName) {
+        upsertSession((s) => ({ ...s, exercises: s.exercises.filter((ex) => ex.name !== exerciseName) }))
+    }
 
-      // If this template doesn't exist in customTemplates yet, clone it from the hardcoded ones
-      if (!updated[tplKey]) {
-        const source = workoutTemplates[tplKey]
-        if (source) {
-          updated[tplKey] = JSON.parse(JSON.stringify(source))
-        } else {
-          // completely new template
-          updated[tplKey] = { name: 'Custom', split: currentSplit, exercises: {} }
+    function addCustomExercise() {
+        const name = newExerciseName.trim()
+        if (!name) return
+        upsertSession((s) => ({
+            ...s,
+            exercises: [...s.exercises, { name, target: '', reps: '', sets: [], notes: '' }],
+        }))
+        setNewExerciseName('')
+    }
+
+    function lastPerformance(exerciseName) {
+        const past = workouts
+            .filter((w) => w.date !== selectedDate)
+            .sort((a, b) => b.date.localeCompare(a.date))
+        for (const w of past) {
+            const ex = w.exercises.find((e) => e.name === exerciseName && e.sets.length > 0)
+            if (ex) {
+                const last = ex.sets[ex.sets.length - 1]
+                return { date: w.date, weight: last.weight, reps: last.reps }
+            }
         }
-      }
-
-      if (!updated[tplKey].exercises[key]) updated[tplKey].exercises[key] = []
-
-      // Remove placeholder
-      if (updated[tplKey].exercises[key].length === 1 && updated[tplKey].exercises[key][0].name === 'Add First Exercise') {
-        updated[tplKey].exercises[key] = []
-      }
-
-      updated[tplKey].exercises[key].push({
-        name: newTemplateExName.trim(),
-        target: newTemplateExSets.trim() || '3 sets',
-        reps: newTemplateExReps.trim() || '8-12 reps'
-      })
-      return updated
-    })
-    setNewTemplateExName('')
-    setNewTemplateExSets('')
-    setNewTemplateExReps('')
-  }
-
-  function removeExerciseFromCustomTemplate(exerciseNameToRemove) {
-    const key = todayWorkout.key
-    const tplKey = selectedTemplate
-
-    setCustomTemplates(prev => {
-      const updated = prev ? JSON.parse(JSON.stringify(prev)) : {}
-
-      // Clone from hardcoded if not yet in customTemplates
-      if (!updated[tplKey]) {
-        const source = workoutTemplates[tplKey]
-        if (source) {
-          updated[tplKey] = JSON.parse(JSON.stringify(source))
-        } else {
-          return prev
-        }
-      }
-
-      if (updated[tplKey].exercises[key]) {
-        updated[tplKey].exercises[key] = updated[tplKey].exercises[key].filter(e => e.name !== exerciseNameToRemove)
-      }
-      return updated
-    })
-  }
-
-  function saveCustomWorkout() {
-    if (!customExerciseName.trim()) return
-
-    const validSets = sets.filter((s) => s.weight && s.reps)
-    if (validSets.length === 0) return
-
-    const newWorkout = {
-      id: crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`,
-      date: todayISO,
-      dayType: 'custom',
-      exercises: [
-        {
-          name: customExerciseName.trim(),
-          sets: validSets.map((s) => ({ weight: Number(s.weight), reps: Number(s.reps) })),
-          notes: notes.trim() || undefined,
-        },
-      ],
+        return null
     }
 
-    setWorkouts((prev) => [...prev, newWorkout])
-    updateStreak()
-    setCustomWorkoutOpen(false)
-    setCustomExerciseName('')
-    setSets([{ weight: '', reps: '' }])
-    setNotes('')
-    setShowRestTimer(true)
-  }
-
-  function handlePhotoUpload(e) {
-    const file = e.target.files?.[0]
-    if (!file) return
-
-    const reader = new FileReader()
-    reader.onload = (event) => {
-      const dataUrl = event.target?.result
-      if (typeof dataUrl === 'string') {
-        const newPhoto = {
-          id: crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`,
-          date: todayISO,
-          dataUrl,
-        }
-        setPhotos((prev) => [...prev, newPhoto])
-      }
+    function logCaloriesBurned() {
+        const cal = Number(burnedInput) || estimateActivityCalories({ type: 'gym', durationMin: 60 })
+        setActivityLog((prev) => [...prev, {
+            id: generateId('act'),
+            date: selectedDate,
+            type: 'gym',
+            caloriesBurned: cal,
+        }])
+        setBurnedInput('')
+        onToast?.(`✓ Logged ${cal} kcal burned for this workout`)
     }
-    reader.readAsDataURL(file)
-  }
 
-  function getLastPerformance(exerciseName) {
-    const lastWorkout = workouts
-      .filter((w) => w.exercises?.some((e) => e.name === exerciseName))
-      .sort((a, b) => new Date(b.date) - new Date(a.date))[0]
+    function addTemplateDay() {
+        setCustomTemplate((t) => ({
+            ...t,
+            days: [...t.days, { id: generateId('day'), label: `Day ${t.days.length + 1}`, exercises: [] }],
+        }))
+    }
 
-    const exercise = lastWorkout?.exercises?.find((e) => e.name === exerciseName)
-    if (!exercise?.sets?.length) return null
+    function removeTemplateDay(dayId) {
+        setCustomTemplate((t) => ({ ...t, days: t.days.filter((d) => d.id !== dayId) }))
+    }
 
-    const best = exercise.sets[0]
-    return { weight: best.weight, reps: best.reps, date: lastWorkout.date }
-  }
+    function updateTemplateDayLabel(dayId, label) {
+        setCustomTemplate((t) => ({ ...t, days: t.days.map((d) => d.id === dayId ? { ...d, label } : d) }))
+    }
 
-  // Streak display helpers
-  const streakCount = streak?.count || 0
-  const streakFlame = streakCount >= 7 ? '🔥🔥' : streakCount >= 3 ? '🔥' : '💪'
+    function addTemplateExercise(dayId) {
+        setCustomTemplate((t) => ({
+            ...t,
+            days: t.days.map((d) => d.id === dayId
+                ? { ...d, exercises: [...d.exercises, { name: 'New Exercise', target: '3 sets', reps: '8-10 reps' }] }
+                : d),
+        }))
+    }
 
-  return (
-    <div className="space-y-4">
-      {/* Rest Timer overlay */}
-      {showRestTimer && <RestTimer onDismiss={() => setShowRestTimer(false)} />}
+    function updateTemplateExercise(dayId, idx, field, value) {
+        setCustomTemplate((t) => ({
+            ...t,
+            days: t.days.map((d) => d.id === dayId
+                ? { ...d, exercises: d.exercises.map((ex, i) => i === idx ? { ...ex, [field]: value } : ex) }
+                : d),
+        }))
+    }
 
-      <div className="rounded-2xl border border-slate-800 bg-slate-950/50 p-4">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <div className="flex items-center gap-2">
-              <div className="text-xs font-semibold tracking-wide text-slate-400">V-TAPER GYM LOG <span className="ml-1 text-emerald-500">v2.0 (Daily Cardio)</span></div>
-              {/* Streak Badge */}
-              {streakCount > 0 && (
-                <div className="inline-flex items-center gap-1 rounded-full border border-orange-500/30 bg-orange-950/30 px-2 py-0.5 text-[10px] font-bold text-orange-400">
-                  {streakFlame} {streakCount}d streak
-                </div>
-              )}
-            </div>
-            <div className="mt-1 text-2xl font-extrabold text-slate-50">Today is {todayWorkout.title}</div>
-            <div className="mt-1 text-sm text-slate-300">Focus: <span className="font-semibold text-emerald-400">{todayWorkout.focus}</span></div>
-          </div>
-          <button
-            type="button"
-            onClick={() => {
-              const keys = Object.keys(mergedTemplates)
-              const currentIndex = keys.indexOf(selectedTemplate)
-              // Go to the next key or back to 0 if at the end/not found
-              const nextIndex = (Math.max(0, currentIndex) + 1) % keys.length
-              setSelectedTemplate(keys[nextIndex])
-            }}
-            className="rounded-xl bg-slate-900/60 px-3 py-2 text-xs font-semibold text-slate-300 hover:bg-slate-800 active:scale-[0.98] transition-all text-left min-w-[130px]"
-          >
-            <div className="flex items-center gap-1.5">
-              <ArrowLeftRight className="h-3 w-3 shrink-0" />
-              <span className="truncate">{currentTemplate.name}</span>
-            </div>
-            {currentTemplate.description && <div className="text-[10px] text-slate-500 mt-0.5 truncate">{currentTemplate.description}</div>}
-          </button>
-        </div>
+    function removeTemplateExercise(dayId, idx) {
+        setCustomTemplate((t) => ({
+            ...t,
+            days: t.days.map((d) => d.id === dayId ? { ...d, exercises: d.exercises.filter((_, i) => i !== idx) } : d),
+        }))
+    }
 
+    const recentWorkouts = useMemo(
+        () => workouts.filter((w) => w.exercises.some((ex) => ex.sets.length > 0)).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5),
+        [workouts]
+    )
 
-        <div className="mt-4 grid grid-cols-2 gap-3">
-          <div className="rounded-2xl border border-slate-800 bg-slate-900/30 p-3">
-            <div className="flex items-center gap-2 text-xs font-semibold text-slate-400">
-              <CalendarClock className="h-4 w-4 text-emerald-400" />
-              Goal Countdown
-            </div>
-            <div className="mt-2 text-lg font-extrabold text-slate-50">
-              {countdown.days}d {countdown.hours}h {countdown.mins}m
-            </div>
-            {isEditingGoal ? (
-              <div className="mt-1 flex items-center gap-2">
-                <input
-                  type="number"
-                  value={goalInputStr}
-                  onChange={e => setGoalInputStr(e.target.value)}
-                  className="w-20 rounded border border-slate-700 bg-slate-900/50 px-2 py-1 text-sm text-slate-100 outline-none focus:border-emerald-500"
-                  placeholder="kg"
-                  autoFocus
-                  onKeyDown={e => {
-                    if (e.key === 'Enter') {
-                      const val = parseFloat(goalInputStr)
-                      if (val > 20 && val < 300) setTargetWeight(val)
-                      setIsEditingGoal(false)
-                    }
-                  }}
-                />
-                <button
-                  onClick={() => {
-                    const val = parseFloat(goalInputStr)
-                    if (val > 20 && val < 300) setTargetWeight(val)
-                    setIsEditingGoal(false)
-                  }}
-                  className="rounded bg-emerald-500 px-2 py-1 text-xs font-bold text-slate-900"
-                >
-                  Save
-                </button>
-              </div>
-            ) : (
-              <div className="text-sm text-slate-400">
-                {isEditingDate ? (
-                  <div className="inline-flex items-center gap-2">
-                    <span className="text-slate-500">Goal date:</span>
-                    <input
-                      type="date"
-                      value={dateInputStr}
-                      onChange={e => setDateInputStr(e.target.value)}
-                      className="rounded border border-slate-700 bg-slate-900/50 px-2 py-1 text-xs text-slate-100 outline-none focus:border-emerald-500"
-                      autoFocus
-                    />
-                    <button
-                      onClick={() => {
-                        if (dateInputStr) setTargetGoalDate(dateInputStr)
-                        setIsEditingDate(false)
-                      }}
-                      className="rounded bg-emerald-500 px-2 py-1 text-xs font-bold text-slate-900"
-                    >
-                      Save
-                    </button>
-                  </div>
-                ) : (
-                  <span
-                    className="cursor-pointer hover:text-slate-300 transition-colors"
-                    onClick={() => {
-                      setDateInputStr(targetGoalDate)
-                      setIsEditingDate(true)
-                    }}
-                  >
-                    Goal date: <span className="text-emerald-400 underline decoration-slate-600 underline-offset-2">{targetDateFormatted}</span>
-                  </span>
-                )}
-                {' • '}
-                <span
-                  className="cursor-pointer hover:text-slate-300 transition-colors"
-                  onClick={() => {
-                    setGoalInputStr(targetWeight.toString())
-                    setIsEditingGoal(true)
-                  }}
-                >
-                  Target: <span className="text-emerald-400 underline decoration-slate-600 underline-offset-2">{targetWeight}kg</span>
-                </span>
-              </div>
-            )}
-          </div>
+    const totalSetsToday = session?.exercises.reduce((s, ex) => s + ex.sets.filter((set) => set.weight || set.reps).length, 0) || 0
 
-          <div className="rounded-2xl border border-slate-800 bg-slate-900/30 p-3">
-            <div className="flex items-center gap-2 text-xs font-semibold text-slate-400">
-              <Dumbbell className="h-4 w-4 text-emerald-400" />
-              {selectedTemplate === 'protocol90' ? 'Weeks Left' : 'Quick Tip'}
-            </div>
-            {selectedTemplate === 'protocol90' ? (
-              <div className="mt-2">
-                <div className="text-lg font-extrabold text-slate-50">{Math.floor(daysLeftNumber / 7)} weeks</div>
-                <div className="text-sm text-slate-400">{Math.floor(daysLeftNumber / 7)} full cycles of Protocol 90</div>
-              </div>
-            ) : (
-              <div className="mt-2 text-sm text-slate-300">
-                On Pull days, keep elbows driving down and pause 1 sec at the bottom for lat engagement.
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Protocol 90 Weekly Schedule */}
-        {selectedTemplate === 'protocol90' && (
-          <div className="mt-4 rounded-2xl border border-amber-500/30 bg-amber-950/10 p-4">
-            <div className="text-xs font-semibold tracking-wide text-amber-400">PROTOCOL 90 • 7-DAY CYCLE</div>
-            <div className="mt-3 grid grid-cols-7 gap-1">
-              {['D1', 'D2', 'D3', 'D4', 'D5', 'D6', 'D7'].map((day, i) => {
-                const dayData = currentSplit[i]
-                const isToday = i === todayIndex
-                const isRest = dayData?.key?.startsWith('rest')
-                const isCardio = dayData?.key === 'cardio'
-                return (
-                  <div
-                    key={day}
-                    className={[
-                      'rounded-lg p-2 text-center text-[10px] font-bold',
-                      isToday
-                        ? 'border-2 border-emerald-400 bg-emerald-500/20 text-emerald-300'
-                        : isRest
-                          ? 'border border-slate-700 bg-slate-900/50 text-slate-500'
-                          : isCardio
-                            ? 'border border-blue-500/30 bg-blue-950/20 text-blue-300'
-                            : 'border border-slate-700 bg-slate-900/30 text-slate-300',
-                    ].join(' ')}
-                  >
-                    <div className="text-[9px] opacity-60">{day}</div>
-                    <div className="mt-0.5 truncate">
-                      {dayData?.key === 'upper1' ? 'UPR1' :
-                        dayData?.key === 'upper2' ? 'UPR2' :
-                          dayData?.key === 'lower1' ? 'LWR1' :
-                            dayData?.key === 'lower2' ? 'LWR2' :
-                              dayData?.key === 'cardio' ? '🚶' :
-                                '😴'}
+    return (
+        <div className="space-y-4">
+            {/* ── TEMPLATE PICKER ───────────────────────────────────────────── */}
+            <div className="rounded-2xl border border-slate-800 bg-slate-950/50 p-4">
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-xs font-semibold tracking-wide text-slate-400">
+                        <Dumbbell className="h-4 w-4 text-purple-400" /> ROUTINE
                     </div>
-                  </div>
-                )
-              })}
-            </div>
-            <div className="mt-2 flex justify-between text-[10px] text-slate-500">
-              <span>🔥 Weights: 4 days</span>
-              <span>🚶 Cardio: Every day</span>
-              <span>😴 Rest: 2 days</span>
-            </div>
-          </div>
-        )}
-
-        <button
-          type="button"
-          onClick={() => setSwapOpen((v) => !v)}
-          className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm font-extrabold text-slate-100 hover:bg-slate-900 active:scale-[0.99]"
-        >
-          <ArrowLeftRight className="h-4 w-4 text-emerald-400" />
-          Adjust Schedule / Wrong Day?
-        </button>
-
-        {swapOpen ? (
-          <div className="mt-3 rounded-2xl border border-slate-800 bg-slate-900/30 p-3">
-            <div className="text-sm font-semibold text-slate-200">What did you actually do today?</div>
-            <div className="mt-2 grid grid-cols-2 gap-2">
-              {currentSplit.map((s) => (
-                <button
-                  key={s.key}
-                  type="button"
-                  onClick={() => setDidKey(s.key)}
-                  className={[
-                    'rounded-xl border px-3 py-2 text-left text-sm font-bold',
-                    didKey === s.key
-                      ? 'border-emerald-500/60 bg-emerald-500/10 text-emerald-300'
-                      : 'border-slate-800 bg-slate-950/30 text-slate-200 hover:bg-slate-900/60',
-                  ].join(' ')}
-                >
-                  {s.title}
-                </button>
-              ))}
-            </div>
-            <div className="mt-2 text-xs text-slate-400">
-              This will "swap" the rolling schedule so today matches what you did, and future days stay consistent.
-            </div>
-            <div className="mt-3 grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => setSwapOpen(false)}
-                className="rounded-xl border border-slate-800 bg-slate-950/30 px-4 py-2 text-sm font-bold text-slate-200 hover:bg-slate-900/60"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={applySwap}
-                className="rounded-xl bg-emerald-500 px-4 py-2 text-sm font-extrabold text-slate-900 hover:bg-emerald-400"
-              >
-                Apply Swap
-              </button>
-            </div>
-          </div>
-        ) : null}
-      </div>
-
-      {todayExercises.length > 0 && (
-        <div className="rounded-2xl border border-slate-800 bg-slate-950/50 p-4">
-          <div className="text-xs font-semibold tracking-wide text-slate-400">EXERCISES FOR TODAY</div>
-          <div className="mt-3 space-y-2">
-            {todayExercises.map((ex) => {
-              const last = getLastPerformance(ex.name)
-              const overload = getOverloadSuggestion(ex.name, workouts)
-              return (
-                <div key={ex.name} className="rounded-xl border border-slate-800 bg-slate-900/30 p-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex-1">
-                      <div className="text-sm font-bold text-slate-100">{ex.name}</div>
-                      <div className="mt-1 text-xs text-slate-400">
-                        Target: {ex.target} • {ex.reps} reps
-                      </div>
-                      {ex.note && <div className="mt-1 text-xs text-emerald-400">{ex.note}</div>}
-                      {/* Progressive Overload suggestion */}
-                      {overload && (
-                        <div className="mt-1.5 inline-flex items-center gap-1 rounded-lg border border-emerald-500/30 bg-emerald-950/30 px-2 py-0.5 text-[10px] font-bold text-emerald-400">
-                          <TrendingUp className="h-3 w-3" />
-                          Ready to level up! Try {overload.suggestedWeight}kg (+2.5kg)
-                        </div>
-                      )}
-                      {last && (
-                        <div className="mt-1 flex items-center gap-1 text-xs text-slate-500">
-                          <TrendingUp className="h-3 w-3" />
-                          Last: {last.weight}kg × {last.reps} reps
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => removeExerciseFromCustomTemplate(ex.name)}
-                        className="rounded-lg border border-red-500/30 px-3 py-1.5 text-xs font-bold text-red-400 hover:bg-red-500/10"
-                      >
-                        Remove
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => openLogExercise(ex)}
-                        className="rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-extrabold text-slate-900 hover:bg-emerald-400"
-                      >
-                        Log
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-
-          <div className="mt-4 rounded-xl border border-dashed border-emerald-500/30 bg-emerald-950/10 p-3">
-            <div className="mb-2 text-xs font-semibold tracking-wide text-emerald-400">ADD TO {todayWorkout.title.toUpperCase()} ROUTINE</div>
-            <div className="flex flex-col gap-2">
-              <input
-                type="text"
-                placeholder="Exercise Name (e.g. Bicep Curls)"
-                value={newTemplateExName}
-                onChange={e => setNewTemplateExName(e.target.value)}
-                className="rounded-lg border border-slate-700 bg-slate-900/50 px-3 py-2 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-emerald-500"
-              />
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  placeholder="Sets (e.g. 3 sets)"
-                  value={newTemplateExSets}
-                  onChange={e => setNewTemplateExSets(e.target.value)}
-                  className="w-1/2 rounded-lg border border-slate-700 bg-slate-900/50 px-3 py-2 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-emerald-500"
-                />
-                <input
-                  type="text"
-                  placeholder="Reps (e.g. 8-10 reps)"
-                  value={newTemplateExReps}
-                  onChange={e => setNewTemplateExReps(e.target.value)}
-                  className="w-1/2 rounded-lg border border-slate-700 bg-slate-900/50 px-3 py-2 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-emerald-500"
-                />
-              </div>
-              <button
-                type="button"
-                onClick={addExerciseToCustomTemplate}
-                className="mt-1 w-full rounded-lg bg-emerald-500/20 py-2 text-xs font-bold tracking-wide text-emerald-400 hover:bg-emerald-500/30"
-              >
-                + Append to Routine
-              </button>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={openCustomWorkout}
-            className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-950/20 px-4 py-3 text-sm font-extrabold text-emerald-300 hover:bg-emerald-950/40 active:scale-[0.99]"
-          >
-            <Plus className="h-4 w-4" />
-            Add Custom Workout
-          </button>
-        </div>
-      )}
-
-      {/* Volume Chart Section */}
-      <div className="rounded-2xl border border-slate-800 bg-slate-950/50 p-4">
-        <button
-          type="button"
-          onClick={() => setShowVolumeChart(v => !v)}
-          className="flex w-full items-center justify-between"
-        >
-          <div className="flex items-center gap-2 text-xs font-semibold tracking-wide text-slate-400">
-            <BarChart2 className="h-4 w-4 text-emerald-400" />
-            WEEKLY VOLUME CHART
-          </div>
-          {showVolumeChart ? <ChevronUp className="h-4 w-4 text-slate-500" /> : <ChevronDown className="h-4 w-4 text-slate-500" />}
-        </button>
-        {showVolumeChart && <VolumeChart workouts={workouts} />}
-        {!showVolumeChart && (
-          <div className="mt-1 text-xs text-slate-600">Tap to see your weekly lifting volume trend</div>
-        )}
-      </div>
-
-      {/* ── TODAY'S WEIGHT ───────────────────────────────────────────────────── */}
-      <div className="rounded-2xl border border-slate-800 bg-slate-950/50 p-4">
-        <div className="flex items-center gap-2 text-xs font-semibold tracking-wide text-slate-400">
-          <Scale className="h-4 w-4 text-blue-400" />
-          TODAY'S WEIGHT
-        </div>
-
-        {(() => {
-          const sorted = [...weightLog].sort((a, b) => b.date.localeCompare(a.date))
-          const todayEntry = weightLog.find(e => e.date === todayISO)
-          const latest = sorted[0]
-          const trendWeight = computeTrendWeight(weightLog, todayISO)
-
-          return (
-            <div className="mt-2 flex items-end justify-between">
-              <div>
-                {todayEntry ? (
-                  <div>
-                    <div className="text-2xl font-extrabold text-slate-50">{todayEntry.weight} <span className="text-base font-semibold text-slate-400">kg</span></div>
-                    {trendWeight && (
-                      <div className="mt-1 text-xs font-semibold text-blue-400">
-                        Trend: {trendWeight}kg <span className="font-normal text-slate-500">(True BW)</span>
-                      </div>
+                    {templateChoice === 'custom' && (
+                        <button type="button" onClick={() => setEditingTemplate((s) => !s)} className="flex items-center gap-1 text-xs font-semibold text-purple-400 hover:text-purple-300">
+                            <Pencil className="h-3.5 w-3.5" /> {editingTemplate ? 'Done' : 'Edit'}
+                        </button>
                     )}
-                  </div>
-                ) : latest ? (
-                  <div>
-                    <div className="text-2xl font-extrabold text-slate-50">{latest.weight} <span className="text-base font-semibold text-slate-400">kg</span></div>
-                    <div className="mt-1 text-xs text-slate-500">Last logged: {latest.date}</div>
-                    {trendWeight && (
-                      <div className="text-xs font-semibold text-blue-400">
-                        Trend: {trendWeight}kg <span className="font-normal text-slate-500">(True BW)</span>
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div className="text-sm text-slate-500">No weight logged yet</div>
-                )}
-              </div>
-              <div className="text-right">
-                <div className="text-xs text-slate-500">Goal</div>
-                <div className="text-lg font-extrabold text-emerald-400">{targetWeight} kg</div>
-                {latest && (
-                  <div className={`text-xs font-bold ${latest.weight > targetWeight ? 'text-amber-400' : 'text-emerald-400'}`}>
-                    {latest.weight > targetWeight ? `${(latest.weight - targetWeight).toFixed(1)}kg to go` : '✓ At goal!'}
-                  </div>
-                )}
-              </div>
-            </div>
-          )
-        })()}
-
-        <div className="mt-3 flex gap-2">
-          <input
-            type="number"
-            placeholder="Enter weight (kg)"
-            value={weightInput}
-            onChange={e => setWeightInput(e.target.value)}
-            onKeyDown={e => {
-              if (e.key === 'Enter') {
-                const val = parseFloat(weightInput)
-                if (!val || val < 20 || val > 300) return
-                setWeightLog(prev => [...prev.filter(e => e.date !== todayISO), { date: todayISO, weight: val }])
-                setWeightInput('')
-              }
-            }}
-            className="flex-1 rounded-xl border border-slate-800 bg-slate-900/50 px-3 py-2 text-sm text-slate-100 outline-none"
-            inputMode="decimal"
-          />
-          <button
-            type="button"
-            onClick={() => {
-              const val = parseFloat(weightInput)
-              if (!val || val < 20 || val > 300) return
-              setWeightLog(prev => [...prev.filter(e => e.date !== todayISO), { date: todayISO, weight: val }])
-              setWeightInput('')
-            }}
-            className="rounded-xl bg-blue-500 px-4 py-2 text-sm font-extrabold text-white hover:bg-blue-400"
-          >
-            Log
-          </button>
-        </div>
-      </div>
-
-      {/* ── FLUID INTAKE ───────────────────────────────────────────────────────── */}
-      <div className="rounded-2xl border border-slate-800 bg-slate-950/50 p-4">
-        <div className="flex items-center gap-2 text-xs font-semibold tracking-wide text-slate-400">
-          <Droplet className="h-4 w-4 text-cyan-400" />
-          FLUID INTAKE
-        </div>
-
-        {(() => {
-          const todayFluid = fluidLog[todayISO] || 0
-          const pct = Math.min((todayFluid / 3.0) * 100, 100)
-          const blurWarning = todayFluid > 0 && todayFluid < 1.5
-
-          return (
-            <div className="mt-3">
-              <div className="flex items-end justify-between">
-                <div>
-                  <div className="text-2xl font-extrabold text-slate-50">{todayFluid.toFixed(1)} <span className="text-base font-semibold text-slate-400">L</span></div>
-                  {blurWarning && (
-                    <div className="mt-1 text-[10px] font-bold text-amber-500 uppercase tracking-widest leading-tight">
-                      ⚠️ BLUR WARNING: Drink more to deflate
-                    </div>
-                  )}
                 </div>
-                <div className="text-right">
-                  <div className="text-xs text-slate-500">Goal</div>
-                  <div className="text-lg font-extrabold text-cyan-400">3.0 L</div>
-                </div>
-              </div>
-
-              <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-slate-900">
-                <div
-                  className={`h-full transition-all duration-500 ${pct === 100 ? 'bg-cyan-400' : blurWarning ? 'bg-amber-500' : 'bg-blue-500'}`}
-                  style={{ width: `${pct}%` }}
-                />
-              </div>
-
-              <div className="mt-4 grid grid-cols-4 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setFluidLog({ ...fluidLog, [todayISO]: Math.max(0, todayFluid - 0.5) })}
-                  className="rounded-xl border border-slate-800 bg-slate-900/50 px-2 py-2 text-xs font-bold text-slate-300 hover:bg-slate-800"
-                >
-                  -0.5L
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setFluidLog({ ...fluidLog, [todayISO]: Math.max(0, todayFluid - 0.25) })}
-                  className="rounded-xl border border-slate-800 bg-slate-900/50 px-2 py-2 text-xs font-bold text-slate-300 hover:bg-slate-800"
-                >
-                  -0.25L
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setFluidLog({ ...fluidLog, [todayISO]: todayFluid + 0.25 })}
-                  className="rounded-xl bg-cyan-500/20 px-2 py-2 text-xs font-extrabold text-cyan-400 hover:bg-cyan-500/30"
-                >
-                  +0.25L
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setFluidLog({ ...fluidLog, [todayISO]: todayFluid + 0.5 })}
-                  className="rounded-xl bg-cyan-500/20 px-2 py-2 text-xs font-extrabold text-cyan-400 hover:bg-cyan-500/30"
-                >
-                  +0.5L
-                </button>
-              </div>
-            </div>
-          )
-        })()}
-      </div>
-
-
-      <div className="rounded-2xl border border-slate-800 bg-slate-950/50 p-4">
-        <div className="flex items-center justify-between">
-          <div className="text-xs font-semibold tracking-wide text-slate-400">WORKOUT HISTORY</div>
-          <button
-            type="button"
-            onClick={() => setHistoryOpen(!historyOpen)}
-            className="inline-flex items-center gap-1 rounded-lg border border-slate-800 bg-slate-900/50 px-3 py-1.5 text-xs font-extrabold text-slate-200 hover:bg-slate-900"
-          >
-            <History className="h-3 w-3" />
-            {historyOpen ? 'Hide' : 'Show All'}
-          </button>
-        </div>
-
-        {workouts.length > 0 ? (
-          <div className="mt-3 space-y-2">
-            {(historyOpen ? workouts : workouts.slice(-3))
-              .slice()
-              .reverse()
-              .map((workout) => {
-                const workoutDateISO = toISODate(new Date(workout.date))
-                const trendForWorkout = computeTrendWeight(weightLog, workoutDateISO)
-                let maxWeight = 0
-                workout.exercises?.forEach(ex => {
-                  ex.sets?.forEach(s => {
-                    const w = parseFloat(s.weight)
-                    if (!isNaN(w) && w > maxWeight) maxWeight = w
-                  })
-                })
-                const rsi = trendForWorkout && maxWeight > 0 ? (maxWeight / parseFloat(trendForWorkout)).toFixed(2) : null
-
-                return (
-                  <div key={workout.id} className="rounded-xl border border-slate-800 bg-slate-900/30 p-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <div className="text-xs font-semibold text-slate-400">
-                            {new Date(workout.date).toLocaleDateString('en-US', {
-                              month: 'short',
-                              day: 'numeric',
-                              year: 'numeric',
-                            })}
-                          </div>
-                          {workout.dayType !== 'custom' && (
-                            <div className="rounded-md bg-slate-800 px-2 py-0.5 text-xs font-bold text-slate-300">
-                              {split.find((s) => s.key === workout.dayType)?.title || workout.dayType}
-                            </div>
-                          )}
-                          {workout.dayType === 'custom' && (
-                            <div className="rounded-md bg-emerald-500/20 px-2 py-0.5 text-xs font-bold text-emerald-400">
-                              Custom
-                            </div>
-                          )}
-                          {rsi && (
-                            <div className="rounded-md bg-indigo-500/20 px-2 py-0.5 text-xs font-bold text-indigo-400">
-                              RSI: {rsi}
-                            </div>
-                          )}
-                        </div>
-                        <div className="mt-2 space-y-1">
-                          {workout.exercises?.map((exercise, exIdx) => (
-                            <div key={exIdx} className="text-sm">
-                              <div className="font-bold text-slate-100">{exercise.name}</div>
-                              <div className="mt-0.5 flex flex-wrap gap-1">
-                                {exercise.sets?.map((set, setIdx) => (
-                                  <div
-                                    key={setIdx}
-                                    className="rounded-md bg-slate-800/50 px-2 py-0.5 text-xs text-slate-300"
-                                  >
-                                    {set.weight}kg × {set.reps}
-                                  </div>
-                                ))}
-                              </div>
-                              {exercise.notes && (
-                                <div className="mt-1 text-xs italic text-slate-500">{exercise.notes}</div>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (confirm('Delete this workout?')) {
-                            setWorkouts((prev) => prev.filter((w) => w.id !== workout.id))
-                          }
-                        }}
-                        className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-800 hover:text-red-400"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </div>
-                )
-              })}
-          </div>
-        ) : (
-          <div className="mt-3 flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-800 bg-slate-900/30 py-8 text-center">
-            <History className="h-8 w-8 text-slate-600" />
-            <div className="mt-2 text-xs text-slate-500">No workouts logged yet. Start logging exercises!</div>
-          </div>
-        )}
-      </div>
-
-      {
-        logExercise && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/90 p-4">
-            <div className="w-full max-w-md rounded-2xl border border-slate-800 bg-slate-900 p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="text-sm font-extrabold text-slate-100">{logExercise.name}</div>
-                  <div className="text-xs text-slate-400">Log your sets</div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setLogExercise(null)}
-                  className="rounded-lg p-1 text-slate-400 hover:bg-slate-800"
-                >
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
-
-              {/* Progressive Overload suggestion in modal */}
-              {(() => {
-                const overload = getOverloadSuggestion(logExercise.name, workouts)
-                if (!overload) return null
-                return (
-                  <div className="mt-3 flex items-center justify-between rounded-xl border border-emerald-500/30 bg-emerald-950/20 px-3 py-2">
-                    <div>
-                      <div className="text-xs font-bold text-emerald-400">🔥 Progressive Overload Ready!</div>
-                      <div className="text-xs text-slate-400">You've hit target reps 2 sessions in a row</div>
-                    </div>
+                <div className="mt-3 flex gap-2 overflow-x-auto">
+                    {Object.entries(gymTemplates).map(([key, t]) => (
+                        <button
+                            key={key}
+                            type="button"
+                            onClick={() => setTemplateChoice(key)}
+                            className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold ${templateChoice === key ? 'bg-purple-500 text-slate-900' : 'bg-slate-800 text-slate-300'}`}
+                        >
+                            {t.name}
+                        </button>
+                    ))}
                     <button
-                      type="button"
-                      onClick={() => setSets(sets.map(s => ({ ...s, weight: String(overload.suggestedWeight) })))}
-                      className="rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-extrabold text-slate-900 hover:bg-emerald-400 whitespace-nowrap"
+                        type="button"
+                        onClick={() => setTemplateChoice('custom')}
+                        className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold ${templateChoice === 'custom' ? 'bg-purple-500 text-slate-900' : 'bg-slate-800 text-slate-300'}`}
                     >
-                      Use {overload.suggestedWeight}kg
+                        {customTemplate.name || 'Custom'}
                     </button>
-                  </div>
-                )
-              })()}
-
-              {/* ML Coasting Alert */}
-              {(() => {
-                const coasting = getCoastingAlert(logExercise.name, workouts)
-                if (!coasting) return null
-                return (
-                  <div className="mt-3 rounded-xl border border-amber-500/30 bg-amber-950/20 px-3 py-2">
-                    <div className="flex items-center gap-1.5 text-xs font-bold text-amber-500">
-                      <TrendingUp className="h-4 w-4" />
-                      ML Coasting Alert
-                    </div>
-                    <div className="mt-1 text-xs text-amber-200/70">
-                      You've logged RPE 7 or lower for two weeks. Coasting detected. Increase weight now or the transformation stalls.
-                    </div>
-                  </div>
-                )
-              })()}
-
-              <div className="mt-4 space-y-2">
-                {sets.map((set, idx) => (
-                  <div key={idx} className="flex gap-1.5 sm:gap-2">
-                    <div className="flex h-10 w-8 sm:w-10 shrink-0 items-center justify-center rounded-lg bg-slate-800 text-xs font-bold text-slate-300">
-                      {idx + 1}
-                    </div>
-                    <input
-                      type="number"
-                      placeholder="Weight (kg)"
-                      value={set.weight}
-                      onChange={(e) => {
-                        const newSets = [...sets]
-                        newSets[idx].weight = e.target.value
-                        setSets(newSets)
-                      }}
-                      className="flex-1 min-w-0 rounded-lg border border-slate-800 bg-slate-950/50 px-2 sm:px-3 py-2 text-sm text-slate-100 outline-none"
-                      inputMode="decimal"
-                    />
-                    <input
-                      type="number"
-                      placeholder="Reps"
-                      value={set.reps}
-                      onChange={(e) => {
-                        const newSets = [...sets]
-                        newSets[idx].reps = e.target.value
-                        setSets(newSets)
-                      }}
-                      className="w-16 sm:w-20 shrink-0 rounded-lg border border-slate-800 bg-slate-950/50 px-2 sm:px-3 py-2 text-sm text-slate-100 outline-none"
-                      inputMode="numeric"
-                    />
-                    <input
-                      type="number"
-                      placeholder="RPE"
-                      value={set.rpe}
-                      onChange={(e) => {
-                        const newSets = [...sets]
-                        newSets[idx].rpe = e.target.value
-                        setSets(newSets)
-                      }}
-                      className="w-14 sm:w-20 shrink-0 rounded-lg border border-slate-800 bg-slate-950/50 px-2 sm:px-3 py-2 text-sm text-slate-100 outline-none"
-                      inputMode="numeric"
-                    />
-                  </div>
-                ))}
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setSets([...sets, { weight: '', reps: '', rpe: '' }])}
-                className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-emerald-400 hover:text-emerald-300"
-              >
-                <Plus className="h-3 w-3" />
-                Add Set
-              </button>
-
-              <textarea
-                placeholder="Notes (optional)"
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                className="mt-3 w-full rounded-lg border border-slate-800 bg-slate-950/50 px-3 py-2 text-sm text-slate-100 outline-none"
-                rows={2}
-              />
-
-              <div className="mt-4 grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setLogExercise(null)}
-                  className="rounded-xl border border-slate-800 bg-slate-950/30 px-4 py-2 text-sm font-bold text-slate-200 hover:bg-slate-900/60"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={saveWorkout}
-                  className="rounded-xl bg-emerald-500 px-4 py-2 text-sm font-extrabold text-slate-900 hover:bg-emerald-400"
-                >
-                  Save Workout
-                </button>
-              </div>
-            </div>
-          </div>
-        )
-      }
-
-      {
-        customWorkoutOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/90 p-4">
-            <div className="w-full max-w-md rounded-2xl border border-slate-800 bg-slate-900 p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="text-sm font-extrabold text-slate-100">Custom Workout</div>
-                  <div className="text-xs text-slate-400">Log any exercise</div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setCustomWorkoutOpen(false)}
-                  className="rounded-lg p-1 text-slate-400 hover:bg-slate-800"
-                >
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
 
-              <div className="mt-4">
-                <label className="text-xs font-semibold text-slate-400">Exercise Name</label>
-                <input
-                  type="text"
-                  placeholder="e.g., Bicep Curls, Plank, etc."
-                  value={customExerciseName}
-                  onChange={(e) => setCustomExerciseName(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-slate-800 bg-slate-950/50 px-3 py-2 text-sm text-slate-100 outline-none"
-                />
-              </div>
-
-              <div className="mt-4 space-y-2">
-                <div className="text-xs font-semibold text-slate-400">Sets</div>
-                {sets.map((set, idx) => (
-                  <div key={idx} className="flex gap-2">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-800 text-xs font-bold text-slate-300">
-                      {idx + 1}
+                {templateChoice === 'custom' && editingTemplate && (
+                    <div className="mt-3 space-y-3 border-t border-slate-800 pt-3">
+                        <input
+                            value={customTemplate.name}
+                            onChange={(e) => setCustomTemplate((t) => ({ ...t, name: e.target.value }))}
+                            className="w-full rounded-xl border border-slate-700 bg-slate-800/50 px-3 py-2 text-sm font-bold text-slate-100 outline-none"
+                            placeholder="Routine name"
+                        />
+                        {customTemplate.days.map((d) => (
+                            <div key={d.id} className="rounded-xl border border-slate-800 bg-slate-900/40 p-3">
+                                <div className="flex items-center gap-2">
+                                    <input
+                                        value={d.label}
+                                        onChange={(e) => updateTemplateDayLabel(d.id, e.target.value)}
+                                        className="flex-1 rounded-lg border border-slate-700 bg-slate-800/50 px-2 py-1 text-sm font-semibold text-slate-100 outline-none"
+                                    />
+                                    <button onClick={() => removeTemplateDay(d.id)} className="text-slate-600 hover:text-red-400">
+                                        <Trash2 className="h-4 w-4" />
+                                    </button>
+                                </div>
+                                <div className="mt-2 space-y-1.5">
+                                    {d.exercises.map((ex, i) => (
+                                        <div key={i} className="flex items-center gap-1.5">
+                                            <input
+                                                value={ex.name}
+                                                onChange={(e) => updateTemplateExercise(d.id, i, 'name', e.target.value)}
+                                                className="flex-1 rounded-lg border border-slate-700 bg-slate-800/30 px-2 py-1 text-xs text-slate-200 outline-none"
+                                            />
+                                            <input
+                                                value={ex.reps || ''}
+                                                onChange={(e) => updateTemplateExercise(d.id, i, 'reps', e.target.value)}
+                                                placeholder="reps"
+                                                className="w-20 rounded-lg border border-slate-700 bg-slate-800/30 px-2 py-1 text-xs text-slate-200 outline-none"
+                                            />
+                                            <button onClick={() => removeTemplateExercise(d.id, i)} className="text-slate-600 hover:text-red-400">
+                                                <X className="h-3.5 w-3.5" />
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                                <button onClick={() => addTemplateExercise(d.id)} className="mt-2 text-xs font-semibold text-purple-400 hover:text-purple-300">
+                                    <Plus className="inline h-3 w-3" /> Add exercise
+                                </button>
+                            </div>
+                        ))}
+                        <button onClick={addTemplateDay} className="w-full rounded-xl border border-dashed border-slate-700 py-2 text-xs font-semibold text-slate-400 hover:text-purple-400">
+                            <Plus className="inline h-3.5 w-3.5" /> Add day
+                        </button>
                     </div>
-                    <input
-                      type="number"
-                      placeholder="Weight (kg)"
-                      value={set.weight}
-                      onChange={(e) => {
-                        const newSets = [...sets]
-                        newSets[idx].weight = e.target.value
-                        setSets(newSets)
-                      }}
-                      className="flex-1 rounded-lg border border-slate-800 bg-slate-950/50 px-3 py-2 text-sm text-slate-100 outline-none"
-                      inputMode="decimal"
-                    />
-                    <input
-                      type="number"
-                      placeholder="Reps"
-                      value={set.reps}
-                      onChange={(e) => {
-                        const newSets = [...sets]
-                        newSets[idx].reps = e.target.value
-                        setSets(newSets)
-                      }}
-                      className="w-20 rounded-lg border border-slate-800 bg-slate-950/50 px-3 py-2 text-sm text-slate-100 outline-none"
-                      inputMode="numeric"
-                    />
-                  </div>
-                ))}
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setSets([...sets, { weight: '', reps: '' }])}
-                className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-emerald-400 hover:text-emerald-300"
-              >
-                <Plus className="h-3 w-3" />
-                Add Set
-              </button>
-
-              <textarea
-                placeholder="Notes (optional)"
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                className="mt-3 w-full rounded-lg border border-slate-800 bg-slate-950/50 px-3 py-2 text-sm text-slate-100 outline-none"
-                rows={2}
-              />
-
-              <div className="mt-4 grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setCustomWorkoutOpen(false)}
-                  className="rounded-xl border border-slate-800 bg-slate-950/30 px-4 py-2 text-sm font-bold text-slate-200 hover:bg-slate-900/60"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={saveCustomWorkout}
-                  className="rounded-xl bg-emerald-500 px-4 py-2 text-sm font-extrabold text-slate-900 hover:bg-emerald-400"
-                >
-                  Save Workout
-                </button>
-              </div>
+                )}
             </div>
-          </div>
-        )
-      }
-    </div >
-  )
+
+            {/* ── DATE ──────────────────────────────────────────────────────── */}
+            <div className="rounded-2xl border border-slate-800 bg-slate-950/50 p-4">
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-xs font-semibold tracking-wide text-slate-400">
+                        <Calendar className="h-4 w-4 text-purple-400" /> DATE
+                    </div>
+                    {selectedDate !== today && (
+                        <button type="button" onClick={() => setSelectedDate(today)} className="rounded-lg bg-purple-500 px-2.5 py-1 text-xs font-bold text-slate-900 hover:bg-purple-400">
+                            Back to Today
+                        </button>
+                    )}
+                </div>
+                <input
+                    type="date"
+                    value={selectedDate}
+                    onChange={(e) => setSelectedDate(e.target.value)}
+                    max={today}
+                    className="mt-2 w-full rounded-xl border border-slate-800 bg-slate-900/40 px-3 py-2 text-sm font-semibold text-slate-100 outline-none"
+                />
+            </div>
+
+            {/* ── DAY PICKER ────────────────────────────────────────────────── */}
+            <div className="flex gap-2 overflow-x-auto">
+                {activeTemplate.days.map((d) => (
+                    <button
+                        key={d.id}
+                        type="button"
+                        onClick={() => pickDay(d)}
+                        className={`shrink-0 rounded-xl px-4 py-2.5 text-sm font-bold ${session?.dayId === d.id ? 'bg-purple-500 text-slate-900' : 'bg-slate-900/50 text-slate-300 border border-slate-800'}`}
+                    >
+                        {d.label}
+                    </button>
+                ))}
+            </div>
+
+            {/* ── SESSION ───────────────────────────────────────────────────── */}
+            {!session || !session.dayId ? (
+                <div className="rounded-2xl border border-dashed border-slate-800 py-10 text-center text-sm text-slate-500">
+                    Pick a day above to start logging {selectedDate === today ? "today's" : 'this'} workout.
+                </div>
+            ) : (
+                <div className="space-y-3">
+                    {session.exercises.map((ex) => {
+                        const last = lastPerformance(ex.name)
+                        return (
+                            <div key={ex.name} className="rounded-2xl border border-slate-800 bg-slate-950/50 p-4">
+                                <div className="flex items-start justify-between">
+                                    <div>
+                                        <div className="font-bold text-slate-100">{ex.name}</div>
+                                        {(ex.target || ex.reps) && (
+                                            <div className="text-xs text-slate-500">{[ex.target, ex.reps].filter(Boolean).join(' · ')}</div>
+                                        )}
+                                        {last && (
+                                            <div className="mt-0.5 text-[11px] text-purple-400">
+                                                Last time ({formatDateLabel(last.date)}): {last.weight || '—'}kg × {last.reps || '—'}
+                                            </div>
+                                        )}
+                                    </div>
+                                    <button onClick={() => removeExercise(ex.name)} className="text-slate-600 hover:text-red-400">
+                                        <Trash2 className="h-4 w-4" />
+                                    </button>
+                                </div>
+
+                                <div className="mt-3 space-y-1.5">
+                                    {ex.sets.map((set, i) => (
+                                        <div key={i} className="flex items-center gap-2">
+                                            <span className="w-5 text-xs text-slate-500">{i + 1}</span>
+                                            <input
+                                                type="number"
+                                                placeholder="kg"
+                                                value={set.weight}
+                                                onChange={(e) => updateSet(ex.name, i, 'weight', e.target.value)}
+                                                className="w-20 rounded-lg border border-slate-800 bg-slate-900/50 px-2 py-1.5 text-sm text-slate-100 outline-none text-center"
+                                                inputMode="decimal"
+                                            />
+                                            <span className="text-slate-600">×</span>
+                                            <input
+                                                type="number"
+                                                placeholder="reps"
+                                                value={set.reps}
+                                                onChange={(e) => updateSet(ex.name, i, 'reps', e.target.value)}
+                                                className="w-20 rounded-lg border border-slate-800 bg-slate-900/50 px-2 py-1.5 text-sm text-slate-100 outline-none text-center"
+                                                inputMode="numeric"
+                                            />
+                                            <button onClick={() => removeSet(ex.name, i)} className="ml-auto text-slate-600 hover:text-red-400">
+                                                <X className="h-3.5 w-3.5" />
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => addSet(ex.name)}
+                                    className="mt-2 flex items-center gap-1 text-xs font-semibold text-purple-400 hover:text-purple-300"
+                                >
+                                    <Plus className="h-3.5 w-3.5" /> Add set
+                                </button>
+                            </div>
+                        )
+                    })}
+
+                    <div className="flex gap-2">
+                        <input
+                            value={newExerciseName}
+                            onChange={(e) => setNewExerciseName(e.target.value)}
+                            onKeyDown={(e) => e.key === 'Enter' && addCustomExercise()}
+                            placeholder="Add an extra exercise..."
+                            className="flex-1 rounded-xl border border-dashed border-slate-700 bg-slate-900/30 px-3 py-2.5 text-sm text-slate-200 outline-none placeholder:text-slate-600"
+                        />
+                        <button type="button" onClick={addCustomExercise} className="rounded-xl bg-slate-800 px-3 text-slate-300 hover:bg-slate-700">
+                            <Plus className="h-4 w-4" />
+                        </button>
+                    </div>
+
+                    {totalSetsToday > 0 && (
+                        <div className="rounded-2xl border border-orange-500/20 bg-orange-950/10 p-4">
+                            <div className="flex items-center gap-2 text-xs font-semibold tracking-wide text-orange-400">
+                                <Flame className="h-4 w-4" /> LOG CALORIES BURNED (OPTIONAL)
+                            </div>
+                            <div className="mt-2 flex gap-2">
+                                <input
+                                    type="number"
+                                    placeholder="e.g. 300"
+                                    value={burnedInput}
+                                    onChange={(e) => setBurnedInput(e.target.value)}
+                                    className="flex-1 rounded-xl border border-slate-800 bg-slate-900/50 px-3 py-2 text-sm text-slate-100 outline-none"
+                                    inputMode="numeric"
+                                />
+                                <button type="button" onClick={logCaloriesBurned} className="rounded-xl bg-orange-500 px-4 py-2 text-sm font-extrabold text-white hover:bg-orange-400">
+                                    Log
+                                </button>
+                            </div>
+                            <div className="mt-1 text-[11px] text-slate-500">Adds to today's calorie balance on the Today tab. Leave blank to use a rough 60-min estimate.</div>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* ── RECENT WORKOUTS ───────────────────────────────────────────── */}
+            {recentWorkouts.length > 0 && (
+                <div className="rounded-2xl border border-slate-800 bg-slate-950/50 p-4">
+                    <div className="flex items-center gap-2 text-xs font-semibold tracking-wide text-slate-400">
+                        <HistoryIcon className="h-4 w-4" /> RECENT WORKOUTS
+                    </div>
+                    <div className="mt-2 space-y-1.5">
+                        {recentWorkouts.map((w) => {
+                            const sets = w.exercises.reduce((s, ex) => s + ex.sets.filter((set) => set.weight || set.reps).length, 0)
+                            return (
+                                <button
+                                    key={w.id}
+                                    type="button"
+                                    onClick={() => setSelectedDate(w.date)}
+                                    className="flex w-full items-center justify-between rounded-xl bg-slate-900/40 px-3 py-2 text-left hover:bg-slate-900"
+                                >
+                                    <span className="text-sm text-slate-200">{formatDateLabel(w.date)} · {w.dayLabel}</span>
+                                    <span className="text-xs text-slate-500">{w.exercises.length} exercises · {sets} sets</span>
+                                </button>
+                            )
+                        })}
+                    </div>
+                </div>
+            )}
+        </div>
+    )
 }

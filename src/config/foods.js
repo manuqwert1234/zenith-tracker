@@ -1,164 +1,59 @@
-// Food database for Protocol 90 protein tracking
-// Easy to update - just add/edit/delete items here!
+// Starter food database — generic, everyday foods with no ties to any one
+// person's diet, currency, or cuisine. Users add/edit/remove freely from
+// Settings > Foods, and everything they add lives in localStorage under
+// ct.customFoods, layered on top of this list.
+//
+// All values are per the listed unit. Macros in grams, calories in kcal.
 
 export const foodDatabase = {
-    // ===== EGGS =====
-    egg_whole: {
-        name: 'Boiled Egg (Whole)',
-        protein: 6,
-        calories: 70,
-        unit: '1 egg',
-        price: 12, // 2 for 24
-        emoji: '🥚',
-        category: 'eggs'
-    },
-    egg_white: {
-        name: 'Egg White Only',
-        protein: 3.5,
-        calories: 17,
-        unit: '1 egg',
-        price: 12, // Same as whole egg (yolk discarded)
-        emoji: '🥚',
-        category: 'eggs'
-    },
-
-    // ===== CHICKEN =====
-    chicken_tikka: {
-        name: 'Chicken Tikka',
-        protein: 25,
-        calories: 300,
-        unit: '4 pieces',
-        price: 105,
-        emoji: '🍗',
-        category: 'chicken'
-    },
-    grilled_chicken_qtr: {
-        name: 'Grilled Chicken (Quarter)',
-        protein: 28,
-        calories: 260,
-        unit: '1 quarter leg',
-        price: 0, // Estimate relative to tikka
-        emoji: '🍗',
-        category: 'chicken'
-    },
-    mandi_meat_only: {
-        name: 'Mandi Chicken (Meat Only)',
-        protein: 28,
-        calories: 280,
-        unit: '1 piece',
-        price: 0, // Estimate
-        emoji: '🍖',
-        category: 'chicken'
-    },
-
-    // ===== DANGER FOODS ⚠️ (High Calorie) =====
-    mandi_full_plate: {
-        name: 'Mandi (Full Plate)',
-        protein: 30,
-        calories: 900,
-        unit: '1 plate',
-        price: 0, // Estimate
-        emoji: '⚠️',
-        category: 'danger',
-        warning: 'High calorie! Eat meat, skip 50% rice'
-    },
-    biryani_chicken: {
-        name: 'Chicken Biryani',
-        protein: 25,
-        calories: 800,
-        unit: '1 portion',
-        price: 0, // Estimate
-        emoji: '⚠️',
-        category: 'danger',
-        warning: 'Treat meal only!'
-    },
-    dragon_chicken: {
-        name: 'Dragon Chicken',
-        protein: 18,
-        calories: 450,
-        unit: '1 dry portion',
-        price: 0, // Estimate
-        emoji: '⚠️',
-        category: 'danger',
-        warning: 'Fried + sugar sauces'
-    },
-    mayonnaise: {
-        name: 'Mayonnaise',
-        protein: 0,
-        calories: 100,
-        unit: '1 tbsp',
-        price: 0, // Usually free condiment?
-        emoji: '⚠️',
-        category: 'danger',
-        warning: 'Pure fat - avoid!'
-    },
-
-    // ===== DAIRY =====
-    greek_yogurt: {
-        name: 'Greek Yogurt',
-        protein: 7,
-        calories: 90,
-        unit: '100g cup',
-        price: 60,
-        emoji: '🥛',
-        category: 'dairy'
-    },
-
-    // ===== CARBS =====
-    chapati: {
-        name: 'Chapati/Roti',
-        protein: 3,
-        calories: 100,
-        unit: '1 piece',
-        price: 0, // Estimate
-        emoji: '🫓',
-        category: 'carbs'
-    },
-    idly: {
-        name: 'Idly',
-        protein: 2,
-        calories: 40,
-        unit: '1 piece',
-        price: 20,
-        emoji: '⚪',
-        category: 'carbs'
-    },
-
-    // ===== FRUITS =====
-    banana: {
-        name: 'Banana',
-        protein: 1,
-        calories: 105,
-        unit: '1 medium',
-        price: 0,
-        emoji: '🍌',
-        category: 'fruits'
-    },
-    cut_fruit: {
-        name: 'Cut Fruit',
-        protein: 1,
-        calories: 50,
-        unit: '1 bowl',
-        price: 40,
-        emoji: '🍉',
-        category: 'fruits'
-    },
+    egg_whole: { name: 'Egg (whole, boiled)', calories: 70, protein: 6, carbs: 0.5, fat: 5, unit: '1 egg', emoji: '🥚', category: 'protein' },
+    egg_white: { name: 'Egg White', calories: 17, protein: 3.5, carbs: 0, fat: 0, unit: '1 egg', emoji: '🥚', category: 'protein' },
+    chicken_breast: { name: 'Chicken Breast (grilled)', calories: 165, protein: 31, carbs: 0, fat: 3.6, unit: '100g', emoji: '🍗', category: 'protein' },
+    salmon: { name: 'Salmon (baked)', calories: 208, protein: 22, carbs: 0, fat: 13, unit: '100g', emoji: '🐟', category: 'protein' },
+    tofu: { name: 'Tofu (firm)', calories: 144, protein: 15, carbs: 3, fat: 8, unit: '100g', emoji: '🧊', category: 'protein' },
+    greek_yogurt: { name: 'Greek Yogurt (plain)', calories: 90, protein: 10, carbs: 4, fat: 2.5, unit: '150g', emoji: '🥛', category: 'dairy' },
+    milk: { name: 'Milk (whole)', calories: 150, protein: 8, carbs: 12, fat: 8, unit: '1 cup', emoji: '🥛', category: 'dairy' },
+    cheese: { name: 'Cheddar Cheese', calories: 113, protein: 7, carbs: 0.4, fat: 9, unit: '1 slice', emoji: '🧀', category: 'dairy' },
+    rice_white: { name: 'White Rice (cooked)', calories: 205, protein: 4, carbs: 45, fat: 0.4, unit: '1 cup', emoji: '🍚', category: 'carbs' },
+    rice_brown: { name: 'Brown Rice (cooked)', calories: 216, protein: 5, carbs: 45, fat: 1.8, unit: '1 cup', emoji: '🍚', category: 'carbs' },
+    oats: { name: 'Oats (dry)', calories: 150, protein: 5, carbs: 27, fat: 3, unit: '40g', emoji: '🥣', category: 'carbs' },
+    bread: { name: 'Bread (whole wheat)', calories: 80, protein: 4, carbs: 14, fat: 1, unit: '1 slice', emoji: '🍞', category: 'carbs' },
+    pasta: { name: 'Pasta (cooked)', calories: 220, protein: 8, carbs: 43, fat: 1.3, unit: '1 cup', emoji: '🍝', category: 'carbs' },
+    potato: { name: 'Potato (baked)', calories: 160, protein: 4, carbs: 37, fat: 0.2, unit: '1 medium', emoji: '🥔', category: 'carbs' },
+    banana: { name: 'Banana', calories: 105, protein: 1.3, carbs: 27, fat: 0.4, unit: '1 medium', emoji: '🍌', category: 'fruit' },
+    apple: { name: 'Apple', calories: 95, protein: 0.5, carbs: 25, fat: 0.3, unit: '1 medium', emoji: '🍎', category: 'fruit' },
+    berries: { name: 'Mixed Berries', calories: 60, protein: 1, carbs: 14, fat: 0.4, unit: '1 cup', emoji: '🫐', category: 'fruit' },
+    orange: { name: 'Orange', calories: 62, protein: 1.2, carbs: 15, fat: 0.2, unit: '1 medium', emoji: '🍊', category: 'fruit' },
+    broccoli: { name: 'Broccoli (steamed)', calories: 55, protein: 4, carbs: 11, fat: 0.6, unit: '1 cup', emoji: '🥦', category: 'vegetables' },
+    salad: { name: 'Mixed Green Salad', calories: 25, protein: 2, carbs: 5, fat: 0.3, unit: '1 bowl', emoji: '🥗', category: 'vegetables' },
+    avocado: { name: 'Avocado', calories: 240, protein: 3, carbs: 12, fat: 22, unit: '1 whole', emoji: '🥑', category: 'vegetables' },
+    almonds: { name: 'Almonds', calories: 164, protein: 6, carbs: 6, fat: 14, unit: '28g (~23 nuts)', emoji: '🌰', category: 'snacks' },
+    peanut_butter: { name: 'Peanut Butter', calories: 190, protein: 8, carbs: 6, fat: 16, unit: '2 tbsp', emoji: '🥜', category: 'snacks' },
+    protein_shake: { name: 'Protein Shake', calories: 120, protein: 24, carbs: 3, fat: 1, unit: '1 scoop + water', emoji: '🥤', category: 'snacks' },
+    beans_black: { name: 'Black Beans (cooked)', calories: 227, protein: 15, carbs: 41, fat: 0.9, unit: '1 cup', emoji: '🫘', category: 'protein' },
+    lentils: { name: 'Lentils (cooked)', calories: 230, protein: 18, carbs: 40, fat: 0.8, unit: '1 cup', emoji: '🍲', category: 'protein' },
+    pizza_slice: { name: 'Pizza (cheese)', calories: 285, protein: 12, carbs: 36, fat: 10, unit: '1 slice', emoji: '🍕', category: 'treats' },
+    chocolate: { name: 'Dark Chocolate', calories: 170, protein: 2, carbs: 13, fat: 12, unit: '1 oz (28g)', emoji: '🍫', category: 'treats' },
+    ice_cream: { name: 'Ice Cream', calories: 137, protein: 2.3, carbs: 16, fat: 7, unit: '1/2 cup', emoji: '🍨', category: 'treats' },
+    soda: { name: 'Soda', calories: 140, protein: 0, carbs: 39, fat: 0, unit: '1 can', emoji: '🥤', category: 'treats' },
 }
 
-// Daily protein goal for Protocol 90
-export const PROTEIN_GOAL = 90
+// A generic starting point — every user should tune these in Settings during
+// onboarding rather than inherit someone else's targets.
+export const DEFAULT_CALORIE_GOAL = 2000
+export const DEFAULT_PROTEIN_GOAL = 100
+export const DEFAULT_CARB_GOAL = 225
+export const DEFAULT_FAT_GOAL = 65
 
-// Calorie goal for cutting
-export const CALORIE_GOAL = 1800
-
-// Quick add buttons (most used items)
+// A small, cuisine-neutral starter set for the Quick Add row before the user
+// has built up their own history.
 export const quickAddItems = [
     'egg_whole',
-    'chicken_tikka',
-    'grilled_chicken_qtr',
-    'egg_white',
-    'banana',
-    'cut_fruit',
+    'chicken_breast',
     'greek_yogurt',
-    'idly',
+    'banana',
+    'oats',
+    'rice_white',
+    'salad',
+    'protein_shake',
 ]

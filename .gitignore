@@ -23,6 +23,14 @@ dist-ssr
 *.sln
 *.sw?
 
-# Firebase config (IMPORTANT: Keep credentials secret!)
-src/config/firebase.js
+# Local env vars (optional Firebase cloud-sync keys — see .env.example)
+.env
+.env.local
 android_backup
+
+# Firebase CLI
+firebase-debug.log
+.firebase/
+
+# Push-reminder notifier (run by GitHub Actions, see notifier/)
+notifier/node_modules

@@ -490,24 +490,24 @@ export default function Today({ settings, onToast }) {
                 <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-slate-800">
                     <div className="h-full rounded-full bg-cyan-400" style={{ width: `${Math.min((todayWaterMl / Math.max(waterGoal, 1)) * 100, 100)}%` }} />
                 </div>
-                <div className="mt-3 flex flex-wrap gap-2">
-                    <button type="button" onClick={() => addWater(250)} className="rounded-xl border border-cyan-500/30 bg-cyan-950/20 px-3 py-2 text-xs font-extrabold text-cyan-300 hover:bg-cyan-950/40">+250ml</button>
-                    <button type="button" onClick={() => addWater(500)} className="rounded-xl border border-cyan-500/30 bg-cyan-950/20 px-3 py-2 text-xs font-extrabold text-cyan-300 hover:bg-cyan-950/40">+500ml</button>
-                    <button type="button" onClick={() => addWater(1000)} className="rounded-xl border border-cyan-500/30 bg-cyan-950/20 px-3 py-2 text-xs font-extrabold text-cyan-300 hover:bg-cyan-950/40">+1L</button>
-                    <div className="flex flex-1 min-w-[120px] gap-2">
-                        <input
-                            type="number"
-                            placeholder="Custom ml"
-                            value={waterInput}
-                            onChange={(e) => setWaterInput(e.target.value)}
-                            onKeyDown={(e) => e.key === 'Enter' && logWaterManual()}
-                            className="flex-1 rounded-xl border border-slate-800 bg-slate-900/50 px-3 py-2 text-sm text-slate-100 outline-none"
-                            inputMode="numeric"
-                        />
-                        <button type="button" onClick={logWaterManual} className="rounded-xl bg-cyan-500 px-3 py-2 text-sm font-extrabold text-slate-900 hover:bg-cyan-400">
-                            Add
-                        </button>
-                    </div>
+                <div className="mt-3 grid grid-cols-3 gap-2">
+                    <button type="button" onClick={() => addWater(250)} className="rounded-xl border border-cyan-500/30 bg-cyan-950/20 px-2 py-2 text-xs font-extrabold text-cyan-300 hover:bg-cyan-950/40">+250ml</button>
+                    <button type="button" onClick={() => addWater(500)} className="rounded-xl border border-cyan-500/30 bg-cyan-950/20 px-2 py-2 text-xs font-extrabold text-cyan-300 hover:bg-cyan-950/40">+500ml</button>
+                    <button type="button" onClick={() => addWater(1000)} className="rounded-xl border border-cyan-500/30 bg-cyan-950/20 px-2 py-2 text-xs font-extrabold text-cyan-300 hover:bg-cyan-950/40">+1L</button>
+                </div>
+                <div className="mt-2 flex gap-2">
+                    <input
+                        type="number"
+                        placeholder="Custom ml"
+                        value={waterInput}
+                        onChange={(e) => setWaterInput(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && logWaterManual()}
+                        className="min-w-0 flex-1 rounded-xl border border-slate-800 bg-slate-900/50 px-3 py-2 text-sm text-slate-100 outline-none"
+                        inputMode="numeric"
+                    />
+                    <button type="button" onClick={logWaterManual} className="shrink-0 rounded-xl bg-cyan-500 px-3 py-2 text-sm font-extrabold text-slate-900 hover:bg-cyan-400">
+                        Add
+                    </button>
                 </div>
             </div>
 
